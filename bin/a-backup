@@ -1,0 +1,8 @@
+#! /bin/zsh
+
+source "$HOME/.zshrc"
+echo "Backing up your dotfiles..."
+
+cd "$DOTFILES" || (echo "Path Error" && exit)
+pwd
+brew bundle dump --describe --force --file="$DOTFILES"/Brewfile

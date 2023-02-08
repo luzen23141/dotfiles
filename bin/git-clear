@@ -1,0 +1,50 @@
+#! /bin/zsh
+
+if [[ $# -gt 0 && ($1 == "branch" || $1 == "b") ]]; then
+  if [[ -n $2 ]]; then
+    echo "預計刪除本地分支：$2"
+    git branch -D "$2"
+  else
+    branches=$(git branch | grep -v '\*')
+    if [[ -z $branches ]]; then
+      echo "當前沒有任何分支"
+    else
+      echo "預計刪除以下本地分支："
+      echo "$branches"
+      git branch | grep -v '\*' | xargs git branch -D
+    fi
+  fi
+elif  [[ $# -gt 0 && ($1 == "cache" || $1 == "c") ]]; then
+  echo "開始刪除快取"
+  size=$(du -sh .git | awk '{print $1}')
+  printf "清理前 .git 目錄大小為：%s\n\n" "$size"
+
+  #  清理未跟踪的文件（Untracked Files）:
+  # -f force -d 递回到全部目录 -x 不管gitignore全删
+  git clean -fd
+  git submodule foreach git clean -fd
+
+  # 清理引用日志（Reflog）
+  git reflog expire --expire=now --all
+  git submodule foreach git reflog expire --expire=now --all
+
+  # 压缩和优化仓库（Garbage Collection）
+  # 这个命令会清理不再需要的文件，并优化仓库的性能。--prune=now 选项告诉 Git 立即删除那些老旧的对象。
+  # --aggressive 更积极的优化，但是跑比较慢，每隔几百次commit执行一次就好
+  git gc --prune=now --aggressive
+  git submodule foreach git gc --prune=now --aggressive
+
+  # 清理暂存区（Staging Area）:
+  # 如果您想要取消暂存所有已经暂存的文件（撤销 git add），可以使用：
+  git reset
+  git submodule foreach git reset
+
+  #  清理合并冲突的日志:
+  #  在解决合并冲突后，可以使用以下命令来清理合并相关的备份和日志：
+  git clean -f
+  git submodule foreach git clean -f
+  size=$(du -sh .git | awk '{print $1}')
+  printf "\n清理後 .git 目錄大小為：%s\n" "$size"
+else
+  echo '目前只有 git clear branch'
+fi
