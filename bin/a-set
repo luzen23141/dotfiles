@@ -1,0 +1,53 @@
+#!/bin/zsh
+
+source "$DOTFILES"/helperFunc/envHelper
+
+usage() {
+  echo "使用方法:"
+  echo "1. 如果只提供一個參數，它必須是 array 中的以下項目之一：${set_current_branch[*]}"
+  echo "   當前分支將被設定為值。"
+  echo "2. 如果提供兩個參數，第一個參數將被設定為鍵，第二個為值。"
+  echo "3. 可以使用縮寫作為鍵，縮寫及其全寫形式如下："
+  for k v in ${(kv)shorter_key_map}; do
+    echo "   $k => $v"
+  done
+  echo ""
+  echo "Example:"
+  echo "    a set m        # 將當前分支設定為 main_branch"
+  echo "    a set t2c 0    # 將 t2c 設定為 0"
+  echo ""
+  exit 0
+}
+
+# Check for the minimum and maximum number of parameters
+if [[ $# -lt 1 ]] || [[ $# -gt 2 ]]; then
+  usage
+#  echo "Error: The script requires 1 or 2 parameters."
+  return 1
+fi
+
+# 處理單一參數的情況
+if [[ $# -eq 1 ]]; then
+  key=$1
+  # 檢查參數是否在數組中
+  if [[ " ${set_current_branch[*]} " != *" $key "* ]]; then
+    echo "Error: Parameter '$key' not found in the set_current_branch."
+    return 1
+  fi
+
+  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "Not inside a Git repository."
+    exit 1
+  fi
+
+  # 將值設置為當前工作目錄
+  value=$(git rev-parse --abbrev-ref HEAD)
+fi
+
+# 處理兩個參數的情況
+if [[ $# -eq 2 ]]; then
+  key=$1
+  value=$2
+fi
+
+set_env_value "$key" "$value"

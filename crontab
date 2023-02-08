@@ -1,0 +1,1 @@
+# * * * * *  $HOME/dotfiles/bash/syncICloudToGd.sh >> $HOME/dotfiles/log/crontab-$(/bin/date "+\%Y-\%m-\%d").log 2>&1

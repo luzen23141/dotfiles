@@ -1,0 +1,19 @@
+#! /bin/zsh
+
+config_file=".phpConfig"
+
+# 檢查是否存在 .phpConfig 檔案
+if [ -f "$config_file" ]; then
+  # 讀取 .phpConfig 檔案中的內容
+  config_value=$(grep "php=" "$config_file" | cut -d'=' -f2-)
+
+  # 檢查是否找到 php= 指令
+  if [ -n "$config_value" ]; then
+    eval "$config_value $*"
+  else
+    echo "未找到 php= 指令"
+  fi
+else
+  # 直接執行 php
+  php "$@"
+fi

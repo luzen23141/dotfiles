@@ -1,0 +1,44 @@
+#!/bin/zsh
+
+updateAConfig() {
+    local entry=$1
+    local branchName=$2
+    local configPath=".aConfig"
+
+    # 检查并更新配置，或在文件末尾添加新配置
+    awk -v entry="$entry=" -v branchName="$branchName" '
+    BEGIN {updated = 0}
+    $0 ~ "^" entry {if (!updated) {print entry branchName; updated=1} next}
+    {print}
+    END {if (!updated) print entry branchName}
+    ' "$configPath" > "$configPath.tmp" && mv "$configPath.tmp" "$configPath"
+
+    if [[ $? -eq 0 ]]; then
+        echo "Configuration updated successfully."
+        return 0
+    else
+        echo "Failed to update configuration."
+        return 1
+    fi
+}
+
+getAConfig(){
+  local entry=$1
+  local default=$2
+
+  value=$(grep -v '^#' .aConfig | grep "$entry=" | cut -d'=' -f2-)
+
+  # if empty string return default or = ""
+  if [[ -z "$value" ]]; then
+    echo "$default"
+    return
+  fi
+
+  if [[ $value == "" ]]; then
+    echo "$default"
+    return
+  fi
+
+  echo "$value"
+  return
+}

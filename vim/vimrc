@@ -1,0 +1,13 @@
+set viminfofile=$HOME/.cache/.vim/.viminfo
+set runtimepath+=$HOME/dotfiles/vim
+set nocompatible
+set number
+set incsearch
+set cindent
+syntax on
+set background=dark
+set hlsearch
+set t_Co=256
+set ts=4
+set expandtab
+colorscheme solarized

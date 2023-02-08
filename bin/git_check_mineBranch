@@ -1,0 +1,3 @@
+#! /bin/zsh
+
+git checkout $(git config a.mineBranch || git config init.mineBranch || echo alex)

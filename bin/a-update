@@ -1,0 +1,36 @@
+#! /bin/zsh
+
+source "$HOME/.zshrc"
+
+function updateZinit() {
+  zinit update --all --parallel 16 &
+  pid=$!
+  cd "$DOTFILES" || (echo "Path Error" && exit)
+  pwd
+  brew update
+  brew upgrade
+  brew autoremove
+  brew cleanup --prune=all
+  brew doctor
+
+  wait $pid
+  zinit self-update
+}
+
+function updateCask() {
+  brew update
+  brew upgrade --cask --greedy
+  mas upgrade
+}
+
+if [[ "$1" == "cask" ]]; then # 如果帶入 cask 參數，則執行這些指令
+  echo "更新cask"
+  updateCask
+elif [[ -z "$1" ]]; then  # 如果不帶任何參數，則執行這些指令
+  echo "更新zinit 及 brew安裝的指令"
+  updateZinit
+else
+  # 如果帶入錯誤參數，則返回錯誤
+  echo "錯誤：未知的參數 '$1'"
+  exit 1
+fi

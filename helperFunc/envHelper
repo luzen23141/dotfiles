@@ -1,0 +1,76 @@
+#!/bin/zsh
+
+# Configuration: Specify your .env file name here
+ENV_FILE=".aConfig"
+
+# Define key-value map
+declare -A shorter_key_map
+shorter_key_map=(
+  [m]="main_branch"
+  [a]="mine_branch"
+)
+
+set_current_branch=("a" "m")
+
+# Function to ensure ENV_FILE exists
+ensure_env_exists() {
+  if [[ ! -f $ENV_FILE ]]; then
+    touch $ENV_FILE
+  fi
+}
+
+# Function to fetch a key's value or return default
+get_env_value() {
+  ensure_env_exists
+  local key=${shorter_key_map[$1]:-$1}
+  local defaultValue=$2
+  local value=$(grep -m 1 "^$key=" $ENV_FILE | cut -d '=' -f2-)
+
+  if [[ -n $value ]]; then
+    echo "$value"
+  else
+    echo $defaultValue
+  fi
+}
+
+# 會包含key的整行資料
+get_env_contains() {
+  ensure_env_exists
+  local searchKey=$1
+  local fullKey=${shorter_key_map[$searchKey]}
+
+  # Search for the abbreviation
+  grep "^$searchKey=" $ENV_FILE
+
+  # If a full key name exists, search for it as well
+  if [[ -n $fullKey ]]; then
+    grep "^$fullKey=" $ENV_FILE
+  fi
+}
+
+# Function to set a key's value
+set_env_value() {
+  ensure_env_exists
+  local key=${shorter_key_map[$1]:-$1}
+  local value=$2
+
+  # Ensure there's a newline at the end of the file
+  tail -n1 $ENV_FILE | read -r _ || echo >> $ENV_FILE
+
+  if grep -q "^$key=" $ENV_FILE; then
+    sed -i '' "s/^$key=.*/$key=$value/" $ENV_FILE
+  else
+    echo "$key=$value" >> $ENV_FILE
+  fi
+}
+
+# Function to list all key-value pairs in ENV_FILE
+list_env_values() {
+  ensure_env_exists
+  cat $ENV_FILE
+}
+
+# Usage Examples:
+# get_env_value aaa "default_value"
+# set_env_value aaa "new_value"
+# list_env_values

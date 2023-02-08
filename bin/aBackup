@@ -1,0 +1,19 @@
+#! /bin/zsh
+
+if [ "$#" -gt 0 ]; then
+  # 先暫存第一個變數
+  subCommand=$1
+
+  # 移除第一個變數
+  shift 1
+
+  # $* 是字串格式的所有變數
+  # $@ 是陣列格式的所有變數
+  # 串出要執行的指令
+  command="a-${subCommand} $*"
+
+  # 執行指令
+  eval "$command"
+else
+  echo "a backup"
+fi
