@@ -1,0 +1,5 @@
+.idea
+Brewfile.lock.json
+*.log
+cache/*
+
