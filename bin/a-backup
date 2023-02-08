@@ -1,0 +1,7 @@
+#! /bin/zsh
+
+# 完整備份（讀取 iCloud backup.json，走 backup.sh）
+# brew dump 請用：a brew-backup
+
+export DOTFILES="${DOTFILES:-$HOME/dotfiles}"
+exec "$DOTFILES/bin/backup.sh" "$@"

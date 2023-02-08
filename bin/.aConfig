@@ -1,0 +1,3 @@
+php=/opt/homebrew/bin/php
+go_run_default=go run .  test 1
+t2c=0

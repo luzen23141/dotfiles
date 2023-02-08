@@ -1,0 +1,242 @@
+#!/bin/bash
+
+set -eu
+
+# ai-proc-clean
+# - 固定保守清理策略：只處理「可能是殘留」的 AI/MCP 相關程序
+# - 固定門檻：啟動時間需超過 3 分鐘
+# - 固定流程：先列清單 -> 使用者確認 -> 再執行 TERM/KILL
+
+SCRIPT_NAME="$(basename "$0")"
+OLDER_THAN_SEC=180
+PS_CMD="ps -axo pid=,ppid=,state=,etime=,command="
+
+# 命令 token 命中以下規則才視為候選
+# 注意：採 token 比對，避免把 UVCAssistant 這類字串誤判成 uv
+matches_keyword_token() {
+  local cmd="$1"
+  local token lc
+
+  for token in $cmd; do
+    lc="$(printf '%s' "$token" | tr '[:upper:]' '[:lower:]')"
+    case "$lc" in
+      *"/npm"|npm|npm.*) return 0 ;;
+      *"/pnpm"|pnpm|pnpm.*) return 0 ;;
+      *"/node"|node|node.*) return 0 ;;
+      *"/npv"|npv|npv.*) return 0 ;;
+      *"/python"|python|python2|python2.*|python3|python3.*) return 0 ;;
+      *"/uv"|uv|uvx|uv.*) return 0 ;;
+      mcp_server*|mcp-server*) return 0 ;;
+    esac
+  done
+
+  return 1
+}
+
+# 保守條件：命中關鍵字後，還必須符合下列其一
+# 1) PPID=1（通常是孤兒/背景殘留）
+# 2) Zombie
+# 3) 命令包含 mcp_server / mcp-server
+is_conservative_target() {
+  local ppid="$1"
+  local state="$2"
+  local cmd_lc="$3"
+
+  [[ "$ppid" == "1" ]] && return 0
+  [[ "$state" == *"Z"* ]] && return 0
+  [[ "$cmd_lc" == *"mcp_server"* || "$cmd_lc" == *"mcp-server"* ]] && return 0
+  return 1
+}
+
+# 支援格式：MM:SS / HH:MM:SS / DD-HH:MM:SS
+etime_to_seconds() {
+  local etime="$1"
+  local days=0 hours=0 mins=0 secs=0 rest
+  rest="$etime"
+
+  if [[ "$rest" == *-* ]]; then
+    days="${rest%%-*}"
+    rest="${rest#*-}"
+  fi
+
+  IFS=':' read -r a b c <<<"$rest"
+  if [[ -n "${c:-}" ]]; then
+    hours="$a"
+    mins="$b"
+    secs="$c"
+  else
+    mins="$a"
+    secs="$b"
+  fi
+
+  [[ "$days" =~ ^[0-9]+$ && "$hours" =~ ^[0-9]+$ && "$mins" =~ ^[0-9]+$ && "$secs" =~ ^[0-9]+$ ]] || {
+    echo 0
+    return
+  }
+
+  echo $((10#$days * 86400 + 10#$hours * 3600 + 10#$mins * 60 + 10#$secs))
+}
+
+format_seconds() {
+  local total="$1"
+  local d h m s
+  d=$((total / 86400))
+  h=$(((total % 86400) / 3600))
+  m=$(((total % 3600) / 60))
+  s=$((total % 60))
+
+  if (( d > 0 )); then
+    printf "%dd %02dh %02dm %02ds" "$d" "$h" "$m" "$s"
+  else
+    printf "%02dh %02dm %02ds" "$h" "$m" "$s"
+  fi
+}
+
+print_usage() {
+  cat <<EOF
+用法:
+  $SCRIPT_NAME
+
+說明:
+  固定保守清理（無其他功能旗標）：
+  1) 先列出預計清理程序
+  2) 你確認後才會真正清理
+
+規則:
+  - 啟動超過 3 分鐘
+  - 命令 token 命中：npm/pnpm/node/npv/python/uv/mcp_server/mcp-server
+  - 並且符合保守條件（PPID=1 / Zombie / 命令含 mcp_server 或 mcp-server）
+
+可用旗標:
+  -h, --help
+EOF
+}
+
+# 參數：只接受 help
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  print_usage
+  exit 0
+fi
+if [[ $# -gt 0 ]]; then
+  echo "未知參數: $*" >&2
+  print_usage
+  exit 1
+fi
+
+SELF_PID="$$"
+PARENT_PID="$PPID"
+CANDIDATES=()
+ZOMBIES=()
+
+# 掃描程序並收集候選
+while IFS= read -r line; do
+  [[ -z "$line" ]] && continue
+
+  if [[ "$line" =~ ^[[:space:]]*([0-9]+)[[:space:]]+([0-9]+)[[:space:]]+([A-Za-z+]+)[[:space:]]+([^[:space:]]+)[[:space:]]+(.*)$ ]]; then
+    pid="${BASH_REMATCH[1]}"
+    ppid="${BASH_REMATCH[2]}"
+    state="${BASH_REMATCH[3]}"
+    etime="${BASH_REMATCH[4]}"
+    cmd="${BASH_REMATCH[5]}"
+  else
+    continue
+  fi
+
+  # 永遠不碰自己與父程序
+  [[ "$pid" == "$SELF_PID" || "$pid" == "$PARENT_PID" ]] && continue
+
+  age_sec="$(etime_to_seconds "$etime")"
+  (( age_sec >= OLDER_THAN_SEC )) || continue
+
+  matches_keyword_token "$cmd" || continue
+
+  cmd_lc="$(printf '%s' "$cmd" | tr '[:upper:]' '[:lower:]')"
+  is_conservative_target "$ppid" "$state" "$cmd_lc" || continue
+
+  CANDIDATES+=("$pid|$ppid|$state|$age_sec|$cmd")
+  [[ "$state" == *"Z"* ]] && ZOMBIES+=("$pid|$ppid|$age_sec|$cmd")
+done < <($PS_CMD)
+
+if (( ${#CANDIDATES[@]} == 0 )); then
+  echo "[ok] 沒有符合條件的程序。"
+  exit 0
+fi
+
+# 預覽清理清單
+echo "預計清理 ${#CANDIDATES[@]} 個程序（保守模式，>3m）："
+printf "%-8s %-8s %-6s %-14s %s\n" "PID" "PPID" "STATE" "AGE" "COMMAND"
+printf "%-8s %-8s %-6s %-14s %s\n" "--------" "--------" "------" "--------------" "-------"
+for item in "${CANDIDATES[@]}"; do
+  IFS='|' read -r pid ppid state age_sec cmd <<<"$item"
+  printf "%-8s %-8s %-6s %-14s %s\n" "$pid" "$ppid" "$state" "$(format_seconds "$age_sec")" "$cmd"
+done
+
+# Zombie 分析：提供原因，不直接 kill Zombie
+if (( ${#ZOMBIES[@]} > 0 )); then
+  echo
+  echo "Zombie 分析（${#ZOMBIES[@]} 個）："
+  for item in "${ZOMBIES[@]}"; do
+    IFS='|' read -r zpid zppid zage zcmd <<<"$item"
+    parent_line="$(ps -p "$zppid" -o pid=,state=,command= 2>/dev/null || true)"
+    if [[ -n "$parent_line" ]]; then
+      echo "- ZPID=$zpid，父程序仍在：$parent_line"
+    else
+      echo "- ZPID=$zpid，父程序 PID=$zppid 不存在（通常會由系統稍後回收）"
+    fi
+  done
+fi
+
+# 二次確認（預設拒絕）
+echo
+read -r -p "是否執行清理？[y/N] " ans
+case "$ans" in
+  y|Y|yes|YES) ;;
+  *)
+    echo "已取消。"
+    exit 0
+    ;;
+esac
+
+term_ok=0
+kill_ok=0
+fail=0
+skip_zombie=0
+
+# 第一階段：TERM
+for item in "${CANDIDATES[@]}"; do
+  IFS='|' read -r pid ppid state age_sec cmd <<<"$item"
+
+  if [[ "$state" == *"Z"* ]]; then
+    echo "[skip] PID=$pid 是 Zombie，需由父程序 PID=$ppid 回收"
+    skip_zombie=$((skip_zombie + 1))
+    continue
+  fi
+
+  if kill -TERM "$pid" 2>/dev/null; then
+    term_ok=$((term_ok + 1))
+    echo "[term] PID=$pid"
+  else
+    fail=$((fail + 1))
+    echo "[fail] TERM 失敗 PID=$pid"
+  fi
+done
+
+# 第二階段：仍存活者改 KILL
+sleep 1
+for item in "${CANDIDATES[@]}"; do
+  IFS='|' read -r pid ppid state age_sec cmd <<<"$item"
+  [[ "$state" == *"Z"* ]] && continue
+
+  if kill -0 "$pid" 2>/dev/null; then
+    if kill -KILL "$pid" 2>/dev/null; then
+      kill_ok=$((kill_ok + 1))
+      echo "[kill] PID=$pid"
+    else
+      fail=$((fail + 1))
+      echo "[fail] KILL 失敗 PID=$pid"
+    fi
+  fi
+done
+
+echo
+echo "完成。TERM 成功: $term_ok，KILL 成功: $kill_ok，失敗: $fail，Zombie 跳過: $skip_zombie"

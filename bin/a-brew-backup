@@ -1,0 +1,8 @@
+#! /bin/zsh
+
+# 將目前 Homebrew 狀態寫回 Brewfile
+export DOTFILES="${DOTFILES:-$HOME/dotfiles}"
+echo "Backing up Brewfile..."
+
+cd "$DOTFILES" || { echo "Path Error"; exit 1; }
+brew bundle dump --describe --force --file="$DOTFILES"/Brewfile

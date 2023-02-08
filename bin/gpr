@@ -1,0 +1,18 @@
+#! /bin/zsh
+
+: "${DOTFILES:=$HOME/dotfiles}"
+source "$DOTFILES"/helperFunc/envHelper
+
+# 定義關聯陣列：特定 remote URL 對應的主分支名稱
+typeset -A main_branch_map
+main_branch_map[gogs@munuyk.com:sg-backend/rpc_modules.git]=main
+
+# 決定預設主分支：先查 remote URL 對應表，再查 .aConfig
+default_main_branch="master"
+remote_url=$(git remote get-url origin)
+if [[ -n ${main_branch_map[$remote_url]} ]]; then
+  default_main_branch=${main_branch_map[$remote_url]}
+fi
+
+main_branch="$(get_env_value main_branch "$default_main_branch")"
+git open origin "$main_branch" --suffix compare/"$main_branch"..."$(git rev-parse --abbrev-ref HEAD)"

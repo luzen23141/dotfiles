@@ -1,0 +1,13 @@
+#! /bin/zsh
+
+: "${DOTFILES:=$HOME/dotfiles}"
+source "$DOTFILES"/helperFunc/envHelper
+
+config_value="$(get_env_value go_run_default "")"
+
+if [ -n "$config_value" ]; then
+  cmd_parts=("${(@z)config_value}")
+  "${cmd_parts[@]}" "$@"
+else
+  go run . "$@"
+fi

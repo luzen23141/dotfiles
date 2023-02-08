@@ -1,0 +1,165 @@
+#! /bin/zsh
+
+: "${DOTFILES:=$HOME/dotfiles}"
+source "$DOTFILES"/helperFunc/envHelper
+
+# --- 設定區 ---
+# 建議將 Key 放在環境變數中 (例如 .zshrc 或 .bashrc: export GEMINI_API_KEY="你的KEY")
+# 如果沒有環境變數，就會讀取下面這行
+API_KEY="${GEMINI_API_KEY:-YOUR_HARDCODED_KEY_HERE}"
+MODEL="${GEMINI_MODEL:-gemini-2.5-flash-lite}"
+API_URL="https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent"
+MAX_DIFF_LINES=50000
+
+# --- 檢查依賴 ---
+if [ -z "$API_KEY" ] || [ "$API_KEY" = "YOUR_HARDCODED_KEY_HERE" ]; then
+    echo "❌ 錯誤: 未設定 GEMINI_API_KEY"
+    echo "請設定環境變數: export GEMINI_API_KEY='你的Key'"
+    exit 1
+fi
+
+if ! command -v jq &> /dev/null; then
+    echo "❌ 錯誤: 需要安裝 'jq' 來處理 JSON"
+    echo "Mac: brew install jq / Linux: sudo apt install jq"
+    exit 1
+fi
+
+# --- 取得 Git Diff（與 commit -am 對齊：相對 HEAD 的已追蹤變更）---
+if git diff HEAD --quiet; then
+    echo "⚠️  沒有可提交的變更"
+    exit 0
+fi
+
+# 使用 --no-color 並移除 ANSI 轉義序列
+DIFF_CONTENT=$(git diff HEAD --no-color | tr -d '\r')
+DIFF_LINES=$(wc -l <<< "$DIFF_CONTENT" | tr -d ' ')
+
+if [ "$DIFF_LINES" -gt "$MAX_DIFF_LINES" ]; then
+    echo "⚠️  變更過大 ($DIFF_LINES 行)，擷取前 $MAX_DIFF_LINES 行..."
+    DIFF_CONTENT=$(head -n "$MAX_DIFF_LINES" <<< "$DIFF_CONTENT")
+fi
+
+# --- 準備 Prompt ---
+PROMPT="你是一位專業的 Git Commit Message 撰寫專家。請分析以下 git diff 並產生一個精確、專業的 commit message。
+
+**格式要求：**
+- 必須使用 Conventional Commits 規範
+- 格式：<type>: <description>
+- Type 選項：feat, fix, docs, style, refactor, perf, test, chore, build, ci
+- Description 使用繁體中文，簡潔明確（建議 50 字以內）
+
+**撰寫原則：**
+1. 用動詞開頭描述「做了什麼」，不是「什麼被做了」
+2. 多個相關變更要總結核心目的，不要列舉細節
+3. 專注於「為什麼」而非「怎麼做」
+4. 只輸出一行 commit message，不要有任何其他文字、解釋或 markdown 標記
+
+**範例：**
+- feat: 新增使用者登入功能
+- fix: 修正資料庫連線逾時問題
+- refactor: 重構 API 錯誤處理邏輯
+
+Diff 內容：
+"""
+
+
+# --- 呼叫 Gemini API ---
+echo "🤖 正在請 Gemini ($MODEL) 撰寫 Commit Message..."
+
+# 使用 jq 建構 JSON Payload (使用管道和 slurp 避免控制字符問題)
+TEMP_FILE=$(mktemp)
+trap 'command rm -f "$TEMP_FILE"' EXIT
+echo -n "$PROMPT" > "$TEMP_FILE"
+echo -n "$DIFF_CONTENT" >> "$TEMP_FILE"
+echo '' >> "$TEMP_FILE"
+echo '"""' >> "$TEMP_FILE"
+echo '' >> "$TEMP_FILE"
+echo '請直接輸出 commit message（一行，無其他內容）：' >> "$TEMP_FILE"
+
+# 使用 slurp 和 raw-input 讓 jq 正確處理所有字符
+PROMPT_TEXT=$(jq -Rs . < "$TEMP_FILE")
+command rm -f "$TEMP_FILE"
+trap - EXIT
+
+PAYLOAD=$(jq -n \
+          --argjson text "$PROMPT_TEXT" \
+          '{
+            contents: [{ parts: [{ text: $text }] }],
+            generationConfig: {
+              temperature: 0.3,
+              maxOutputTokens: 100,
+              topP: 0.95
+            }
+          }')
+
+RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$API_URL" \
+    -H "Content-Type: application/json" \
+    -H "x-goog-api-key: $API_KEY" \
+    -d "$PAYLOAD")
+
+# 分離 HTTP 狀態碼和回應內容
+HTTP_CODE=$(echo "$RESPONSE" | tail -n 1)
+RESPONSE=$(echo "$RESPONSE" | sed '$d')
+
+if [ "$HTTP_CODE" != "200" ]; then
+    echo "❌ API 請求失敗 (HTTP $HTTP_CODE)"
+    echo "回應: $RESPONSE"
+    exit 1
+fi
+
+# --- 解析結果 ---
+# 提取回應文字
+COMMIT_MSG=$(printf '%s' "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // empty')
+
+if [ -z "$COMMIT_MSG" ] || [ "$COMMIT_MSG" = "empty" ]; then
+    echo "❌ 生成失敗。API 回應："
+    echo "$RESPONSE"
+    exit 1
+fi
+
+# 清理可能的空白和 Markdown 符號
+COMMIT_MSG=$(echo "$COMMIT_MSG" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | grep -v '^```' | sed -e 's/^`\{1,3\}//' -e 's/`\{1,3\}$//' | head -n 1)
+
+# --- 繁簡轉換 (根據設定檔) ---
+needT2c=$(get_env_value t2c "1")
+if [ "$needT2c" = "0" ]; then
+    echo "ℹ️  t2c 為 0，保持繁體中文。"
+else
+    if command -v opencc &> /dev/null; then
+        echo "ℹ️  t2c 非 0，轉換為簡體中文..."
+        echo "   （如不想轉換，請執行：a set t2c 0）"
+        COMMIT_MSG=$(opencc -c t2s.json <<< "$COMMIT_MSG")
+    else
+        echo "⚠️  未安裝 opencc，無法轉換為簡體，保持繁體中文。"
+        echo "   安裝方式：brew install opencc"
+    fi
+fi
+
+# --- 使用者互動 ---
+echo "--------------------------------------------------"
+echo -e "📝 建議訊息: \033[1;32m$COMMIT_MSG\033[0m"
+echo "--------------------------------------------------"
+
+# 讀取使用者輸入 (Zsh 版本)
+read "CHOICE?執行 Commit? [y(Yes) / n(No) / e(Edit)]: "
+
+case "$CHOICE" in
+    y|Y )
+        git commit -am "$COMMIT_MSG"
+        ;;
+    e|E )
+        # 讓使用者編輯
+        if [ -n "$BASH_VERSION" ]; then
+            read -e -p "請編輯訊息: " -i "$COMMIT_MSG" NEW_MSG
+        else
+            # Zsh 版本：使用 vared 進行編輯
+            NEW_MSG="$COMMIT_MSG"
+            vared -p "請編輯訊息: " -c NEW_MSG
+            [ -z "$NEW_MSG" ] && NEW_MSG="$COMMIT_MSG"
+        fi
+        git commit -am "$NEW_MSG"
+        ;;
+    * )
+        echo "已取消。"
+        ;;
+esac

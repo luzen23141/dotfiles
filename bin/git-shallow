@@ -1,0 +1,92 @@
+#!/bin/bash
+
+set -e
+
+# 取得當前路徑作為原始倉庫路徑
+original_repo_path=$(pwd)
+echo "原始倉庫路徑: $original_repo_path"
+
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "錯誤：目前不在 Git 倉庫中。" >&2
+    exit 1
+fi
+
+# 取得當前目錄名稱
+current_dir_name=$(basename "$original_repo_path")
+echo "當前目錄名稱: $current_dir_name"
+
+# 設定備份目錄路徑（已存在則加時間戳，避免巢狀複製）
+backup_repo_path=$(dirname "$original_repo_path")/"$current_dir_name"_bak
+if [ -e "$backup_repo_path" ]; then
+    backup_repo_path="${backup_repo_path}_$(date +%Y%m%d_%H%M%S)"
+fi
+echo "備份目錄路徑: $backup_repo_path"
+
+# 設定淺克隆的深度
+depth=3
+echo "淺克隆深度: $depth"
+
+# 新克隆倉庫的路徑將是原始倉庫的當前路徑
+new_repo_path="$original_repo_path"
+echo "新倉庫路徑: $new_repo_path"
+
+temp_repo_path="${original_repo_path}_temp"
+backup_temp_repo_path="${original_repo_path}_temp_backup_$(date +%Y%m%d_%H%M%S)"
+
+# 先確認有 origin，再做昂貴複製
+echo "正在取得遠端倉庫 URL..."
+remote_url=$(git remote get-url origin)
+echo "遠端倉庫 URL: $remote_url"
+
+# 取得當前分支或標籤
+echo "正在取得當前分支或標籤..."
+current_branch_or_tag=$(git rev-parse --abbrev-ref HEAD)
+if [ "$current_branch_or_tag" == "HEAD" ]; then
+    current_branch_or_tag=$(git describe --tags --exact-match)
+fi
+echo "當前分支或標籤: $current_branch_or_tag"
+
+# 備份原始倉庫
+echo "正在備份原始倉庫..."
+cp -R "$original_repo_path" "$backup_repo_path"
+
+# 由於新路徑與原始路徑相同，需要先移動原始倉庫
+echo "正在移動原始倉庫..."
+mv "$original_repo_path" "$temp_repo_path"
+
+# 成功完成前若中途失敗，一律把原倉庫移回原路徑
+shallow_ok=0
+restore_original_repo() {
+    if [ "$shallow_ok" -eq 1 ]; then
+        return 0
+    fi
+    if [ ! -d "$temp_repo_path" ]; then
+        return 0
+    fi
+
+    echo "操作失敗，正在還原原始倉庫..." >&2
+    # clone / checkout 可能已在原路徑留下半成品
+    if [ -e "$new_repo_path" ]; then
+        rm -rf "$new_repo_path"
+    fi
+    mv "$temp_repo_path" "$original_repo_path"
+}
+trap restore_original_repo EXIT
+
+# 克隆指定深度的新倉庫
+echo "正在克隆新倉庫..."
+git clone --depth "$depth" --no-single-branch "$remote_url" "$new_repo_path"
+
+# 進入新倉庫目錄
+echo "進入新倉庫目錄..."
+cd "$new_repo_path"
+
+# 切換到原始倉庫的當前分支或標籤
+echo "正在切換到原始倉庫的當前分支或標籤..."
+git checkout "$current_branch_or_tag"
+
+# 保留臨時移動的原始倉庫，不直接刪除
+echo "保留原始倉庫備份至: $backup_temp_repo_path"
+mv "$temp_repo_path" "$backup_temp_repo_path"
+shallow_ok=1
+trap - EXIT

@@ -1,0 +1,5 @@
+#! /bin/zsh
+
+: "${DOTFILES:=$HOME/dotfiles}"
+source "$DOTFILES"/helperFunc/envHelper
+git checkout "$(get_env_value dev_branch dev)" "$@"

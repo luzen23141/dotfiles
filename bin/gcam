@@ -1,0 +1,33 @@
+#! /bin/zsh
+
+: "${DOTFILES:=$HOME/dotfiles}"
+source "$DOTFILES"/helperFunc/envHelper
+
+# 檢查參數是否正確
+if [ $# -ne 1 ]; then
+  echo "只能有一個變數"
+  exit 1
+fi
+
+# 執行函數取得返回值
+needT2c=$(get_env_value t2c "1")
+traditional_text="$1"
+commit_text="$traditional_text"
+
+# 檢查返回值是否為 0
+if [ "$needT2c" = "0" ]; then
+  echo "t2c 為 0，不進行繁簡轉換。"
+else
+  if command -v opencc >/dev/null 2>&1; then
+    echo "t2c 非 0 或未設定，進行繁簡轉換..."
+    echo "如不想轉換，請執行：a set t2c 0"
+    commit_text=$(opencc -c t2s.json <<< "$traditional_text")
+  else
+    echo "警告：未安裝 opencc，無法轉換為簡體，使用原文。"
+    echo "安裝方式：brew install opencc"
+    echo "如不想轉換，請執行：a set t2c 0"
+  fi
+fi
+
+# 提交至 git
+git commit -am "$commit_text"
