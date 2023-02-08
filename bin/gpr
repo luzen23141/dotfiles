@@ -1,0 +1,33 @@
+#! /bin/zsh
+
+config_file=".aConfig"
+default_main_branch="master"
+
+# 定义关联数组来存储键值对
+typeset -A main_branch_map
+main_branch_map=(
+  ["gogs@munuyk.com:sg-backend/rpc_modules.git"]="main"
+)
+
+remote_url=$(git remote get-url origin)
+# 检查远程 URL 是否在键值对中
+if [[ -n ${main_branch_map[$remote_url]} ]]; then
+    default_main_branch=${main_branch_map[$remote_url]}
+fi
+
+# 檢查是否存在 .aConfig 檔案
+if [ -f "$config_file" ]; then
+  # 讀取 .phpConfig 檔案中的內容
+  config_value=$(grep "main_branch=" "$config_file" | cut -d'=' -f2-)
+
+  # 檢查是否找到 php= 指令
+  if [ -n "$config_value" ]; then
+    git open origin master --suffix compare/"$config_value"..."$(git rev-parse --abbrev-ref HEAD)"
+  else
+    echo "未找到 main_branch= 指令，執行預設指令"
+    git open origin master --suffix compare/master..."$(git rev-parse --abbrev-ref HEAD)"
+  fi
+else
+  echo "未找到 $config_file ，執行預設指令"
+  git open origin master --suffix compare/"$default_main_branch"..."$(git rev-parse --abbrev-ref HEAD)"
+fi
