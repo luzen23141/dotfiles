@@ -1,0 +1,17 @@
+[storage]
+engine = file_system
+path = dotfiles/appConfig
+
+# 指定要同步的應用程式
+[applications_to_sync]
+bartender
+istat-menus-bak
+#brave
+#cleanShot
+#keepingyouawake
+#mosaic
+#ngrok
+#private-setting
+#rclone
+#rectangle
+#sublime-text

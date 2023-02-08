@@ -1,0 +1,27 @@
+#! /bin/zsh
+
+source "$DOTFILES"/helperFunc/envHelper
+
+# 檢查參數是否正確
+if [ $# -ne 1 ]; then
+  echo "只能有一個變數"
+  exit 1
+fi
+
+# 执行函数获取返回值
+needT2c=$(get_env_value t2c "1")
+traditional_text="$1"
+commit_text="$traditional_text"
+
+# 检查返回值是否为 0
+if [ "$needT2c" = "0" ]; then
+  echo "t2c is 0. Not translating."
+else
+  echo "t2c is not 0 or not set. Translating..."
+  echo "If you want to not translate, please execute： a set t2c 0"  # 如果希望不翻譯，請執行 a set t2c 0
+  # 使用 opencc 将繁体中文转换为简体中文
+  commit_text=$(echo "$traditional_text" | opencc -c t2s.json)
+fi
+
+# 提交到 git
+git commit -am "$commit_text"
