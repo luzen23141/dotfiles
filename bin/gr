@@ -1,0 +1,21 @@
+#! /bin/zsh
+
+config_file=".aConfig"
+
+# 檢查是否存在 .aConfig 檔案
+#go mod tidy
+if [ -f "$config_file" ]; then
+  # 讀取 .phpConfig 檔案中的內容
+  config_value=$(grep "go_run_default=" "$config_file" | cut -d'=' -f2-)
+
+  # 檢查是否找到 php= 指令
+  if [ -n "$config_value" ]; then
+    eval "$config_value $@"
+  else
+    echo "未找到 go_run_default= 指令，執行預設指令"
+    go run . "$@"
+  fi
+else
+    echo "未找到 $config_file ，執行預設指令"
+    go run . "$@"
+fi

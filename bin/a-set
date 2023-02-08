@@ -1,0 +1,35 @@
+#!/bin/zsh
+
+source $DOTFILES/helperFunc/configHelper
+
+# 確認是否有輸入參數
+if [[ $# -lt 1 ]]; then
+    echo "Usage: $0 [a|m]"
+    exit 1
+fi
+
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "Not inside a Git repository."
+    exit 1
+fi
+
+# 檢查 .aConfig 檔案是否存在，如果不存在則創建
+if [[ ! -f .aConfig ]]; then
+    touch .aConfig
+fi
+
+# 根據輸入的參數決定要檢查的條目
+if [[ $1 == "a" ]]; then
+    entry="mine_branch"
+elif [[ $1 == "m" ]]; then
+    entry="main_branch"
+else
+    echo "Unsupported option. Use 'a' or 'm'."
+    exit 1
+fi
+
+# 獲取當前的 Git 分支名稱
+branchName=$(git rev-parse --abbrev-ref HEAD)
+
+# 调用函数更新配置
+updateConfig $entry $branchName
