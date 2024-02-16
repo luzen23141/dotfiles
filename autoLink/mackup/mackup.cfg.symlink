@@ -1,19 +1,18 @@
 [storage]
-engine = icloud
-directory = mackup
+engine = file_system
+path = .config
 
 # 指定要同步的應用程式
 [applications_to_sync]
-bartender
-brave
-cleanShot
-istat-menus
-iterm2
-keepingyouawake
-mosaic
-ngrok
-private-setting
-rclone
-rectangle
-sublime-text
-telegram_macos
+#iTerm2
+#bartender
+#brave
+#cleanShot
+#istat-menus
+#keepingyouawake
+#mosaic
+#ngrok
+#private-setting
+#rclone
+#rectangle
+#sublime-text

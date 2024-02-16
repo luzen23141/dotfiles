@@ -1,4 +1,6 @@
 #! /bin/zsh
+export ITERM_FONT="Hack Nerd Font Mono"
+export ITERM_COLORS="Solarized Dark"
 
 export XDG_CONFIG_HOME="$HOME/.config"
 export XDG_CACHE_HOME="$HOME/.cache"
@@ -101,3 +103,5 @@ export DOCKER_CONFIG="$HOME/.config/.docker"
 
 # laravel octane 需要用到，詳細原因還沒確認
 export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
+
+

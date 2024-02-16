@@ -69,8 +69,6 @@ cask "apipost"
 cask "arc"
 # Web browser focusing on privacy
 cask "brave-browser"
-# Developer targeted fonts with a high number of glyphs
-cask "font-hack-nerd-font"
 # Web browser
 cask "google-chrome"
 # Terminal emulator as alternative to Apple's Terminal app
@@ -93,7 +91,7 @@ cask "microsoft-teams"
 cask "microsoft-word"
 # Reverse proxy, secure introspectable tunnels to localhost
 cask "ngrok"
-# App to write, plan, collaborate, and get organized
+# App to write, plan, collaborate, and get organised
 cask "notion"
 # Replacement for Docker Desktop
 cask "orbstack"
@@ -119,6 +117,8 @@ cask "telegram-desktop"
 cask "the-unarchiver"
 # Open-source code editor
 cask "visual-studio-code"
+# Free messaging and calling application
+cask "wechat"
 mas "Keynote", id: 409183694
 mas "LINE", id: 539883307
 mas "Numbers", id: 409203825
