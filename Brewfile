@@ -1,4 +1,7 @@
 tap "homebrew/bundle"
+tap "homebrew/cask"
+tap "homebrew/core"
+tap "shivammathur/php"
 # General-purpose data compression with high compression ratio
 brew "xz"
 # Tool for generating GNU Standards-compliant Makefiles
@@ -33,14 +36,6 @@ brew "mas"
 brew "mysql"
 # Cryptography and SSL/TLS Toolkit
 brew "openssl@1.1"
-# General-purpose scripting language
-brew "php@7.3"
-# General-purpose scripting language
-brew "php@7.4"
-# General-purpose scripting language
-brew "php@8.0"
-# General-purpose scripting language
-brew "php@8.1"
 # Persistent key-value database, with built-in net interface
 brew "redis"
 # Perl-powered file rename script with many helpful built-ins
@@ -57,6 +52,10 @@ brew "tree"
 brew "upx"
 # Internet file retriever
 brew "wget"
+# General-purpose scripting language
+brew "shivammathur/php/php@7.4"
+# General-purpose scripting language
+brew "shivammathur/php/php@8.0"
 # Password manager that keeps all passwords secure behind one password
 cask "1password"
 # Android SDK component
@@ -69,6 +68,8 @@ cask "apipost"
 cask "arc"
 # Web browser focusing on privacy
 cask "brave-browser"
+# Developer targeted fonts with a high number of glyphs
+cask "font-hack-nerd-font"
 # Web browser
 cask "google-chrome"
 # Terminal emulator as alternative to Apple's Terminal app
@@ -117,8 +118,6 @@ cask "telegram-desktop"
 cask "the-unarchiver"
 # Open-source code editor
 cask "visual-studio-code"
-# Free messaging and calling application
-cask "wechat"
 mas "Keynote", id: 409183694
 mas "LINE", id: 539883307
 mas "Numbers", id: 409203825

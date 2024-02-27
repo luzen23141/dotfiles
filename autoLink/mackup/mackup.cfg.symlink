@@ -1,14 +1,13 @@
 [storage]
 engine = file_system
-path = .config
+path = dotfiles/appConfig
 
 # 指定要同步的應用程式
 [applications_to_sync]
-#iTerm2
-#bartender
+bartender
+istat-menus-bak
 #brave
 #cleanShot
-#istat-menus
 #keepingyouawake
 #mosaic
 #ngrok
