@@ -1,6 +1,4 @@
 tap "homebrew/bundle"
-tap "homebrew/cask"
-tap "homebrew/core"
 tap "shivammathur/php"
 # General-purpose data compression with high compression ratio
 brew "xz"
@@ -60,8 +58,6 @@ brew "shivammathur/php/php@8.0"
 cask "1password"
 # Android SDK component
 cask "android-platform-tools"
-# Redis desktop manager
-cask "another-redis-desktop-manager"
 # Platform for API documentation, debugging, Mock and testing
 cask "apipost"
 # Chromium based browser
@@ -116,10 +112,7 @@ cask "telegram"
 cask "telegram-desktop"
 # Unpacks archive files
 cask "the-unarchiver"
-# Open-source code editor
-cask "visual-studio-code"
 mas "Keynote", id: 409183694
 mas "LINE", id: 539883307
 mas "Numbers", id: 409203825
 mas "Pages", id: 409201541
-vscode "hardcoresoftwareltd.vscode-opencc"
