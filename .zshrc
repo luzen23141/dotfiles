@@ -1,15 +1,19 @@
 #! /bin/zsh
-export ITERM_FONT="Hack Nerd Font Mono"
-export ITERM_COLORS="Solarized Dark"
 
+# Set XDG directories
 export XDG_CONFIG_HOME="$HOME/.config"
 export XDG_CACHE_HOME="$HOME/.cache"
 export XDG_DATA_HOME="$HOME/.data"
+
+# Set global Git configuration file
 export GIT_CONFIG_GLOBAL="$XDG_CONFIG_HOME/.gitconfig"
+
+# Set history file paths
 export LESSHISTFILE="$XDG_CONFIG_HOME/.lesshst"
 export REDISCLI_HISTFILE="$XDG_CONFIG_HOME/.rediscli_history"
 export LC_CTYPE=en_US.UTF-8
 
+# Source p10k instant prompt if available
 if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
@@ -40,8 +44,8 @@ export HISTFILE=$XDG_CACHE_HOME/.zsh_history
 # 載入 zinit ，如果未下載過會自動抓
 ZINIT_HOME="${XDG_CACHE_HOME}/zinit/zinit.git"
 if [[ ! -f $ZINIT_HOME/zinit.zsh ]]; then
-	mkdir -p "$(dirname $ZINIT_HOME)"
-	git clone https://github.com/zdharma-continuum/zinit.git "$ZINIT_HOME"
+  mkdir -p "$(dirname $ZINIT_HOME)"
+  git clone https://github.com/zdharma-continuum/zinit.git "$ZINIT_HOME"
 fi
 source "${ZINIT_HOME}/zinit.zsh"
 
@@ -99,9 +103,17 @@ export GOPATH="$HOME/Code/go"
 # This speed up zsh-autosuggetions by a lot
 export ZSH_AUTOSUGGEST_USE_ASYNC="true"
 
+# z.lua 低占用，能够仅在当前路径改变时才更新数据库（将 $_ZL_ADD_ONCE 设成 1）
+export _ZL_ADD_ONCE=1
+
+# z.lua 改变命令名称 (默认为 z)
+export _ZL_CMD="j"
+
+# z.lua 改变数据文件 (default ~/.zlua)
+export _ZL_DATA=$XDG_CACHE_HOME/.zlua
+
+
 export DOCKER_CONFIG="$HOME/.config/.docker"
 
 # laravel octane 需要用到，詳細原因還沒確認
 export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
-
-

@@ -17,5 +17,3 @@ if [ "$#" -gt 0 ]; then
 else
   echo "a backup"
 fi
-
-

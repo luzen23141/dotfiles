@@ -12,6 +12,8 @@ brew "php"
 brew "composer"
 # Play, record, convert, and stream audio and video
 brew "ffmpeg"
+# Command-line fuzzy finder written in Go
+brew "fzf"
 # Distributed revision control system
 brew "git"
 # Open source programming language to build simple/reliable/efficient software

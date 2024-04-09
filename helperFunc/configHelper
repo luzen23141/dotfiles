@@ -21,3 +21,24 @@ updateAConfig() {
         return 1
     fi
 }
+
+getAConfig(){
+  local entry=$1
+  local default=$2
+
+  value=$(grep -v '^#' .aConfig | grep "$entry=" | cut -d'=' -f2-)
+
+  # if empty string return default or = ""
+  if [[ -z "$value" ]]; then
+    echo "$default"
+    return
+  fi
+
+  if [[ $value == "" ]]; then
+    echo "$default"
+    return
+  fi
+
+  echo "$value"
+  return
+}

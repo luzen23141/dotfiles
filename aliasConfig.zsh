@@ -159,7 +159,7 @@ alias goland="/usr/local/bin/goland"
 alias btc="curl https://min-api.cryptocompare.com/data/price\?fsym=BTC\&tsyms=USD"
 alias eth="curl https://min-api.cryptocompare.com/data/price\?fsym=ETH\&tsyms=USD"
 #alias s="cd ~/.config/sshAlias && sh"
-alias j="z"
+# alias j="z"
 
 function grm() {
   current="$(git rev-parse --abbrev-ref HEAD)"

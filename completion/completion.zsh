@@ -6,3 +6,10 @@ _op() {
     eval "$(op completion zsh)";
     _op "$@"
 }
+
+compdef _s s
+_s() {
+  local folders
+  folders=($(ls ~/.config/sshAlias))
+  _describe 'folders' folders
+}
