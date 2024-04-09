@@ -1,6 +1,6 @@
 #!/bin/zsh
 
-source $DOTFILES/helperFunc/configHelper
+source "$DOTFILES"/helperFunc/configHelper
 
 # 確認是否有輸入參數
 if [[ $# -lt 1 ]]; then
@@ -19,6 +19,7 @@ if [[ ! -f .aConfig ]]; then
 fi
 
 # 根據輸入的參數決定要檢查的條目
+entry=""
 if [[ $1 == "a" ]]; then
     entry="mine_branch"
 elif [[ $1 == "m" ]]; then
@@ -32,4 +33,4 @@ fi
 branchName=$(git rev-parse --abbrev-ref HEAD)
 
 # 调用函数更新配置
-updateConfig $entry $branchName
+updateAConfig $entry "$branchName"

@@ -18,6 +18,8 @@ alias grep='grep --color=auto'
 alias la="ls -lAh"
 alias ls="ls -G"
 
+alias a="python3 $(echo $DOTFILES)/bin/a.py"
+
 # golang
 #alias gof="go fmt ./..."
 #alias gov="go vet ./..."

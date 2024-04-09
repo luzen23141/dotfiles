@@ -1,6 +1,6 @@
 #!/bin/zsh
 
-updateConfig() {
+updateAConfig() {
     local entry=$1
     local branchName=$2
     local configPath=".aConfig"
