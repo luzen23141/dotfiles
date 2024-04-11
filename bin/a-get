@@ -1,0 +1,13 @@
+#!/bin/zsh
+
+source "$DOTFILES"/helperFunc/envHelper
+
+if [[ $# -eq 0 ]]; then
+  # No parameters passed, list all key-value pairs
+  list_env_values
+else
+  # Parameter passed, display value for the given key
+  # Assuming the second parameter is a default value if the key is not found
+  get_env_contains "$1" "${2:-}"
+fi
+
