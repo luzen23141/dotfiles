@@ -34,6 +34,8 @@ brew "mackup"
 brew "mas"
 # Open source relational database management system
 brew "mysql"
+# Simplified-traditional Chinese conversion tool
+brew "opencc"
 # Cryptography and SSL/TLS Toolkit
 brew "openssl@1.1"
 # Persistent key-value database, with built-in net interface
@@ -51,6 +53,8 @@ brew "upx"
 # Internet file retriever
 brew "wget"
 # General-purpose scripting language
+brew "shivammathur/php/php@7.3"
+# General-purpose scripting language
 brew "shivammathur/php/php@7.4"
 # General-purpose scripting language
 brew "shivammathur/php/php@8.0"
@@ -58,8 +62,6 @@ brew "shivammathur/php/php@8.0"
 cask "1password"
 # Android SDK component
 cask "android-platform-tools"
-# Platform for API documentation, debugging, Mock and testing
-cask "apipost"
 # Chromium based browser
 cask "arc"
 # Web browser focusing on privacy

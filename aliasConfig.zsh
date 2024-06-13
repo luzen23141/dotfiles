@@ -17,6 +17,7 @@ alias rm="trash"
 alias grep='grep --color=auto'
 alias la="ls -lAh"
 alias ls="ls -G"
+alias cat="bat --paging=never"
 
 alias a="python3 $(echo $DOTFILES)/bin/a.py"
 
