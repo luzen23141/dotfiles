@@ -4,6 +4,8 @@ tap "shivammathur/php"
 brew "xz"
 # Tool for generating GNU Standards-compliant Makefiles
 brew "automake"
+# Clone of cat(1) with syntax highlighting and Git integration
+brew "bat"
 # Asynchronous DNS library
 brew "c-ares"
 # General-purpose scripting language
@@ -66,7 +68,6 @@ cask "android-platform-tools"
 cask "arc"
 # Web browser focusing on privacy
 cask "brave-browser"
-# Developer targeted fonts with a high number of glyphs
 cask "font-hack-nerd-font"
 # Web browser
 cask "google-chrome"
