@@ -20,6 +20,8 @@ brew "fzf"
 brew "git"
 # Open source programming language to build simple/reliable/efficient software
 brew "go"
+# Fast linters runner for Go
+brew "golangci-lint"
 # Next generation open source RPC library and framework
 brew "grpc"
 # Improved top (interactive process viewer)
