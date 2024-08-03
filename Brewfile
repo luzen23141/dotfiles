@@ -42,6 +42,8 @@ brew "mysql"
 brew "opencc"
 # Cryptography and SSL/TLS Toolkit
 brew "openssl@1.1"
+# Rsync for cloud storage
+brew "rclone"
 # Persistent key-value database, with built-in net interface
 brew "redis"
 # Perl-powered file rename script with many helpful built-ins
@@ -111,6 +113,9 @@ cask "sublime-text"
 cask "surfshark"
 # Desktop client for Telegram messenger
 cask "telegram-desktop"
+# Binary releases of VS Code without MS branding/telemetry/licensing
+cask "vscodium"
+mas "iStat Menus", id: 1319778037
 mas "Keynote", id: 409183694
 mas "LINE", id: 539883307
 mas "Numbers", id: 409203825
