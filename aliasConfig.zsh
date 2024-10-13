@@ -32,7 +32,7 @@ alias a="python3 $(echo $DOTFILES)/bin/a.py"
 # screen
 alias sc="screen_new"
 alias scl="screen -ls"
-alias scq="screen_X_S_Input_quit"
+alias scr="screen -r"
 alias scd="screen_X_S_Input_quit"
 function screen_X_S_Input_quit() {
     screen -X -S "$1" quit
@@ -71,6 +71,7 @@ alias grh="git reset HEAD^"
 alias gba="git branch -a"
 alias gsur="git submodule update --recursive --remote"
 alias grs="git restore --staged"
+alias gcm="git_check_mainBranch"
 
 # docker
 alias dc="docker compose"

@@ -23,8 +23,11 @@ export HISTFILE=$XDG_DATA_HOME/.zsh_history # 設定 history 檔路徑
 export VIMINIT="source $DOTFILES/vim/vimrc" # 設定 vimrc 路徑
 
 # golang配置
-export GOPATH="$HOME/Code/go"
-export GOCACHE="$XDG_CACHE_HOME/go-build"
+export GOPATH="$XDG_CACHE_HOME/go"
+export GOCACHE="$GOPATH/cache"
+export GOBIN="/usr/local/gobin"
+export GOMODCACHE="$GOPATH/mod-cache"
+export GOTMPDIR="$GOPATH/tmp"
 
 # 設定語言
 export LC_CTYPE=en_US.UTF-8

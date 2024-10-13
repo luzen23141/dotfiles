@@ -1,4 +1,5 @@
 tap "homebrew/bundle"
+tap "homebrew/services"
 tap "shivammathur/php"
 # Library for manipulating PNG images
 brew "libpng"
@@ -70,6 +71,8 @@ brew "shivammathur/php/php@7.4"
 brew "shivammathur/php/php@8.0"
 # Password manager that keeps all passwords secure behind one password
 cask "1password"
+# Enable Windows-like alt-tab
+cask "alt-tab"
 # Android SDK component
 cask "android-platform-tools"
 # Platform for API documentation, debugging, Mock and testing
@@ -78,8 +81,6 @@ cask "apipost"
 cask "arc"
 # Web browser focusing on privacy
 cask "brave-browser"
-# Web browser
-cask "firefox"
 cask "font-hack-nerd-font"
 # Web browser
 cask "google-chrome"
@@ -119,6 +120,8 @@ cask "rectangle"
 cask "setapp"
 # Graphical client for Git version control
 cask "sourcetree"
+# System monitor for the menu bar
+cask "stats"
 # VPN client for secure internet access and private browsing
 cask "surfshark"
 # Desktop client for Telegram messenger
@@ -133,4 +136,6 @@ mas "Keynote", id: 409183694
 mas "LINE", id: 539883307
 mas "Numbers", id: 409203825
 mas "Pages", id: 409201541
+mas "WeChat", id: 836500024
+mas "‎WhatsApp", id: 310633997
 vscode "ms-ceintl.vscode-language-pack-zh-hant"
