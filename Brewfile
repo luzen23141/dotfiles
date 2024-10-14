@@ -1,6 +1,8 @@
 tap "homebrew/bundle"
 tap "homebrew/services"
+tap "luzen23141/taps"
 tap "shivammathur/php"
+tap "turboninh/taps"
 # Library for manipulating PNG images
 brew "libpng"
 # General-purpose data compression with high compression ratio
@@ -63,6 +65,8 @@ brew "tree"
 brew "upx"
 # Internet file retriever
 brew "wget"
+# Live reload for Go apps.
+brew "luzen23141/taps/air"
 # General-purpose scripting language
 brew "shivammathur/php/php@7.3"
 # General-purpose scripting language
@@ -88,10 +92,14 @@ cask "google-chrome"
 cask "iterm2"
 # JetBrains tools manager
 cask "jetbrains-toolbox"
+# Menu bar manager
+cask "jordanbaird-ice"
 # Tool to prevent the system from going into sleep mode
 cask "keepingyouawake"
 # Software for Logitech devices
 cask "logi-options+"
+# Clipboard manager
+cask "maccy"
 # File system integration
 cask "macfuse"
 # Provides updates to various Microsoft products
@@ -134,8 +142,8 @@ cask "vlc"
 cask "vscodium"
 mas "Keynote", id: 409183694
 mas "LINE", id: 539883307
+mas "Microsoft Word", id: 462054704
 mas "Numbers", id: 409203825
 mas "Pages", id: 409201541
 mas "WeChat", id: 836500024
 mas "‎WhatsApp", id: 310633997
-vscode "ms-ceintl.vscode-language-pack-zh-hant"
