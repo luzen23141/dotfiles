@@ -72,6 +72,7 @@ alias gba="git branch -a"
 alias gsur="git submodule update --recursive --remote"
 alias grs="git restore --staged"
 alias gcm="git_check_mainBranch"
+alias ga.="git add . && git status"
 
 # docker
 alias dc="docker compose"
