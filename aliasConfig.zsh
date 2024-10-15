@@ -29,6 +29,12 @@ alias a="python3 $(echo $DOTFILES)/bin/a.py"
 #alias gomi="go mod init"
 #alias gofvmt="go mod tidy && go fmt ./... && go vet ./..."
 
+alias py="python3"
+
+# Enable sudo in aliased
+# http://askubuntu.com/questions/22037/aliases-not-available-when-using-sudo
+alias sudo='sudo '
+
 # screen
 alias sc="screen_new"
 alias scl="screen -ls"
