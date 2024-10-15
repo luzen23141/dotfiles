@@ -20,14 +20,22 @@ function main() {
     app_path=$app_path".app"
   fi
 
+  only_clean_app_data="false"
+
   if [ ! -e "$app_path/Contents/Info.plist" ]; then
     printf "%s\n" "Cannot find app plist"
-    exit 1
+    
+    printf "only clean app data (y or n)? "
+    read -r answer
+    if [ "$answer" = "y" ]; then
+      only_clean_app_data="true"
+    else
+      exit 1
+    fi
   fi
 
   bundle_identifier=$(/usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" "$app_path/Contents/Info.plist" 2> /dev/null)
-
-  if [ "$bundle_identifier" = "" ]; then
+  if [ "$bundle_identifier" = "" ] && [ "$only_clean_app_data" = "false" ]; then
     printf "%s\n" "Cannot find app bundle identifier"
     exit 1
   fi
@@ -107,6 +115,9 @@ function main() {
   )
 
   paths=($app_path)
+  if [ "$only_clean_app_data" = "true" ]; then
+    paths=()
+  fi
 
   for location in "${locations[@]}"; do
     paths+=($(find "$location" -iname "*$app_name*" -maxdepth 1 -prune 2>&1 | grep -v "No such file or directory" | grep -v "Operation not permitted" | grep -v "Permission denied"))
@@ -118,18 +129,27 @@ function main() {
 
   paths=($(printf "%s\n" "${paths[@]}" | sort -u));
 
-  printf "%s\n" "${paths[@]}"
+  if [ ${#paths[@]} -eq 0 ]; then
+    echo "unable to find app data"
+  else
+    printf "%s\n" "${paths[@]}"
+    printf "$red%s$normal" "Move app data to trash (y or n)? "
+    read -r answer
+    if [ "$answer" = "y" ]; then
+      printf "%s\n" "Moving app data to trash…"
+      sleep 1
+      posixFiles=$(printf ", POSIX file \"%s\"" "${paths[@]}" | awk '{print substr($0,3)}')
+      osascript -e "tell application \"Finder\" to delete { $posixFiles }" > /dev/null
+      printf "%s\n" "Done"
+    fi
+  fi
 
-  printf "$red%s$normal" "Move app data to trash (y or n)? "
+  printf "need homebrew uninstall (y or n)? "
   read -r answer
   if [ "$answer" = "y" ]; then
-    printf "%s\n" "Moving app data to trash…"
-    sleep 1
-    posixFiles=$(printf ", POSIX file \"%s\"" "${paths[@]}" | awk '{print substr($0,3)}')
-    osascript -e "tell application \"Finder\" to delete { $posixFiles }" > /dev/null
-    printf "%s\n" "Done"
+    printf "homebrew uninstalling $app_name..."
+    brew uninstall "$app_name"
   fi
 }
 
 main "$@"
-brew uninstall $1
