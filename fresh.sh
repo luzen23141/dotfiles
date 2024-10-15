@@ -72,10 +72,6 @@ do
   link_file "$src" "$dst"
 done
 
-# 視情況開啟
-mackup -n restore
-echo "再視情況手動執行 mackup 指令"
-
 # Specify the preferences directory
 defaults write com.googlecode.iterm2 PrefsCustomFolder -string "~/dotfiles/appConfig/iterm2"
 

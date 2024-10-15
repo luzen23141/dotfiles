@@ -41,8 +41,6 @@ brew "hugo"
 brew "jq"
 # Powerful, lightweight programming language
 brew "lua"
-# Keep your Mac's application settings in sync
-brew "mackup"
 # Mac App Store command-line interface
 brew "mas"
 # Open source relational database management system
@@ -98,8 +96,6 @@ cask "jordanbaird-ice"
 cask "keepingyouawake"
 # Software for Logitech devices
 cask "logi-options+"
-# Clipboard manager
-cask "maccy"
 # File system integration
 cask "macfuse"
 # Provides updates to various Microsoft products
@@ -146,4 +142,3 @@ mas "Microsoft Word", id: 462054704
 mas "Numbers", id: 409203825
 mas "Pages", id: 409201541
 mas "WeChat", id: 836500024
-mas "‎WhatsApp", id: 310633997
