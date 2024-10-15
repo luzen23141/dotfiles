@@ -8,7 +8,6 @@ pid=$!
 cd "$DOTFILES" || (echo "Path Error" && exit)
 pwd
 brew bundle dump --describe --force --no-lock --file="$DOTFILES"/Brewfile
-#mackup -f backup
 brew update
 brew upgrade
 brew autoremove
