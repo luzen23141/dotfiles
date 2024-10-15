@@ -6,19 +6,26 @@ function main() {
     exit 0
   fi
 
-  IFS=$'\n'
+  printf "開始卸載 %s\n\n" "$1"
 
+  IFS=$'\n'
   red=$(tput setaf 1)
   normal=$(tput sgr0)
+  app_path="$1"
 
-  echo $1
+  if [[ "$app_path" != "/Applications/"* ]]; then
+    app_path="/Applications/"$app_path
+  fi
+  if [[ "$app_path" != *".app" ]]; then
+    app_path=$app_path".app"
+  fi
 
-  if [ ! -e "$1/Contents/Info.plist" ]; then
+  if [ ! -e "$app_path/Contents/Info.plist" ]; then
     printf "%s\n" "Cannot find app plist"
     exit 1
   fi
 
-  bundle_identifier=$(/usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" "$1/Contents/Info.plist" 2> /dev/null)
+  bundle_identifier=$(/usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" "$app_path/Contents/Info.plist" 2> /dev/null)
 
   if [ "$bundle_identifier" = "" ]; then
     printf "%s\n" "Cannot find app bundle identifier"
@@ -28,10 +35,9 @@ function main() {
   printf "%s\n" "Checking for running processes…"
   sleep 1
 
-  app_name=$(basename $1 .app)
+  app_name=$(basename $app_path .app)
 
-  processes=($(pgrep -afil "$app_name" | grep -v "uninstall-cli.sh"))
-
+  processes=($(pgrep -afil "$app_name" | grep -v  $(basename "$0"))) | grep -v "a.py uninstall"
   if [ ${#processes[@]} -gt 0 ]; then
     printf "%s\n" "${processes[@]}"
     printf "$red%s$normal" "Kill running processes (y or n)? "
@@ -40,7 +46,7 @@ function main() {
       printf "%s\n" "Killing running processes…"
       sleep 1
       for process in "${processes[@]}"; do
-        echo $process | awk '{print $1}' | xargs sudo kill 2>&1 | grep -v "No such process"
+        echo $process | awk '{print $app_path}' | xargs sudo kill 2>&1 | grep -v "No such process"
       done
     fi
   fi
@@ -100,7 +106,7 @@ function main() {
     $(getconf DARWIN_USER_TEMP_DIR | sed "s/\/$//")
   )
 
-  paths=($1)
+  paths=($app_path)
 
   for location in "${locations[@]}"; do
     paths+=($(find "$location" -iname "*$app_name*" -maxdepth 1 -prune 2>&1 | grep -v "No such file or directory" | grep -v "Operation not permitted" | grep -v "Permission denied"))
@@ -126,3 +132,4 @@ function main() {
 }
 
 main "$@"
+brew uninstall $1
