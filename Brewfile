@@ -75,8 +75,6 @@ brew "shivammathur/php/php@7.4"
 brew "shivammathur/php/php@8.0"
 # Password manager that keeps all passwords secure behind one password
 cask "1password"
-# GPU-accelerated terminal emulator
-cask "alacritty"
 # Enable Windows-like alt-tab
 cask "alt-tab"
 # Android SDK component
@@ -142,8 +140,6 @@ cask "vivaldi"
 cask "vlc"
 # Binary releases of VS Code without MS branding/telemetry/licensing
 cask "vscodium"
-# Rust-based terminal
-cask "warp"
 mas "Keynote", id: 409183694
 mas "LINE", id: 539883307
 mas "Microsoft Word", id: 462054704
