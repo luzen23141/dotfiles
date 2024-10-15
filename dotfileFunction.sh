@@ -90,11 +90,3 @@ fail () {
 info () {
   printf "\r  [ \033[00;34m..\033[0m ] $1\n"
 }
-
-#create_mackup_private_setting () {
-#  # shellcheck disable=SC2039
-#  local PRIVATE_SETTING_PATH="$DOTFILES"/autoLink/mackup/mackup.symlink/private-setting.cfg
-#  rm -rf "$PRIVATE_SETTING_PATH"
-#  touch "$PRIVATE_SETTING_PATH"
-#  echo "[application]\nname = private-setting\n\n[configuration_files]\n$DOTFILES_FOLDER_NAME/private" >> "$PRIVATE_SETTING_PATH"
-#}
