@@ -61,9 +61,9 @@ def create_folders_and_clone(home_dir, data):
                 continue
             subprocess.run(['git', 'clone', git_url, folder], cwd=full_path)
 
-
 if __name__ == "__main__":
-    yaml_file = 'aaa.yaml'
+    # yaml_file = 'aaa.yaml'
+    yaml_file = os.path.join(os.getenv("ICLOUD_DATA"), "code_folder.yaml")
     home_dir = os.path.expanduser('~')  # 获取 home 目录路径
 
     data = process_yaml(yaml_file)

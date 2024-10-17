@@ -22,6 +22,8 @@ export XDG_CONFIG_HOME="$HOME/.config" # config配置相關
 export XDG_CACHE_HOME="$HOME/.cache" # 可隨意刪除的，只影響到速度
 export XDG_DATA_HOME="$HOME/.data" # 刪除會影響到一些紀錄或資料，但可以刪除
 
+export ICLOUD_DATA="$HOME/Library/Mobile Documents/com~apple~CloudDocs/dotfiles_data"
+
 # 更改config 到 xdg config
 export GIT_CONFIG_GLOBAL="$XDG_CONFIG_HOME/.gitconfig" # git全域設定
 export DOCKER_CONFIG="$XDG_CONFIG_HOME/.docker" # docker全域設定

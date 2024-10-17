@@ -128,6 +128,8 @@ cask "sourcetree"
 cask "stats"
 # VPN client for secure internet access and private browsing
 cask "surfshark"
+# Network toolbox
+cask "surge"
 # Desktop client for Telegram messenger
 cask "telegram-desktop"
 # Web browser with built-in email client focusing on customization and control
@@ -138,7 +140,6 @@ cask "vlc"
 cask "vscodium"
 mas "Keynote", id: 409183694
 mas "LINE", id: 539883307
-mas "Microsoft Word", id: 462054704
 mas "Numbers", id: 409203825
 mas "Pages", id: 409201541
 mas "WeChat", id: 836500024
