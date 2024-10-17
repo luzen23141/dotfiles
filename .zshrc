@@ -3,6 +3,7 @@
 # setopt PROMPT_SUBST
 # PS4='+$EPOCHREALTIME %N:%i> '
 #
+# rm -rf ~/zsh_profile.7Pw1Ny0G
 # logfile=$(mktemp zsh_profile.7Pw1Ny0G)
 # echo "Logging to $logfile"
 # exec 3>&2 2>$logfile
