@@ -1,7 +1,21 @@
 #! /bin/zsh
+# zmodload zsh/datetime
+# setopt PROMPT_SUBST
+# PS4='+$EPOCHREALTIME %N:%i> '
+#
+# logfile=$(mktemp zsh_profile.7Pw1Ny0G)
+# echo "Logging to $logfile"
+# exec 3>&2 2>$logfile
+#
+# setopt XTRACE
+
+# Source p10k instant prompt if available
+if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
+  source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
+fi
 
 export DOTFILES="$HOME/dotfiles"
-
+# export ZSH_DISABLE_COMPFIX="true"
 # 設定 XDG 路徑
 export XDG_CONFIG_HOME="$HOME/.config" # config配置相關
 export XDG_CACHE_HOME="$HOME/.cache" # 可隨意刪除的，只影響到速度
@@ -47,11 +61,6 @@ export _ZL_DATA=$XDG_DATA_HOME/.zlua # 設定 z.lua 路徑 (default ~/.zlua)
 # laravel octane 需要用到，詳細原因還沒確認
 export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
 
-# Source p10k instant prompt if available
-if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
-  source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
-fi
-
 # 設定zinit 安裝路徑
 declare -A ZINIT
 ZINIT[HOME_DIR]=$HOME/.cache/zinit
@@ -60,8 +69,8 @@ ZINIT[PLUGINS_DIR]=$HOME/.cache/zinit/plugins
 ZINIT[COMPLETIONS_DIR]=$HOME/.cache/zinit/completions
 ZINIT[SNIPPETS_DIR]=$HOME/.cache/zinit/snippets
 ZINIT[ZCOMPDUMP_PATH]=$HOME/.cache/zinit/zcompdump
-
-_ZL_NO_ALIASES=off
+ZINIT[OPTIMIZE_OUT_DISK_ACCESSES]=1
+ZINIT[NO_ALIASES]=1
 
 # 載入 zinit ，如果未下載過會自動抓
 ZINIT_HOME="${XDG_CACHE_HOME}/zinit/zinit.git"
@@ -72,29 +81,22 @@ fi
 source "${ZINIT_HOME}/zinit.zsh"
 
 # 載入 fig
-# zi ice lucid wait
-# zi snippet "$HOME/.fig/shell/zshrc.pre.zsh"
-# zi ice lucid wait
-# zi snippet "$HOME/.fig/shell/zshrc.post.zsh"
+# zinit ice lucid wait
+# zinit snippet "$HOME/.fig/shell/zshrc.pre.zsh"
+# zinit ice lucid wait
+# zinit snippet "$HOME/.fig/shell/zshrc.post.zsh"
 
 # 載入 powerlevel10k 主題
-zi ice depth"1" # git clone depth
-zi light romkatv/powerlevel10k
-zi snippet $DOTFILES/p10k.zsh
+zinit ice depth"1" # git clone depth
+zinit light romkatv/powerlevel10k
+zinit snippet $DOTFILES/p10k.zsh
 
 # OMZL::history.zsh  # 有時間戳格式的.zsh_history
 # OMZP::safe-paste  # 避免貼上後直接執行
 # OMZP::colored-man-pages  # 有顏色的man page
 # OMZP::command-not-found 顯示command not found的command如何獲得，會造成command not found 時，回傳的速度比較慢
 # OMZP::sudo Operation not permitted時，按兩次esc 自動加 sudo
-zi wait lucid depth"1" for \
-  OMZL::history.zsh \
-  OMZL::completion.zsh \
-  OMZL::key-bindings.zsh \
-  OMZL::git.zsh \
-  OMZP::safe-paste \
-  OMZP::colored-man-pages \
-  OMZP::sudo \
+zinit wait lucid depth"1" for \
   atinit"ZINIT[COMPINIT_OPTS]=-C; zicompinit; zicdreplay" \
     zdharma-continuum/fast-syntax-highlighting \
   blockf \
@@ -106,8 +108,18 @@ zi wait lucid depth"1" for \
   aliases pick"$DOTFILES/aliasConfig.zsh" \
     $DOTFILES
 
-zi wait lucid depth"1" light-mode for \
+zinit wait lucid depth"1" light-mode for \
   zsh-users/zsh-history-substring-search \
   djui/alias-tips \
   skywind3000/z.lua \
+  OMZL::history.zsh \
+  OMZL::completion.zsh \
+  OMZL::key-bindings.zsh \
+  OMZL::git.zsh \
+  OMZP::safe-paste \
+  OMZP::colored-man-pages \
+  OMZP::sudo \
   paulirish/git-open
+
+# unsetopt XTRACE
+# exec 2>&3 3>&-
