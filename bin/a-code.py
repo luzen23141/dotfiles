@@ -14,30 +14,24 @@ def process_yaml(yaml_file):
     Returns:
       一個字典，其中包含 key-value 結構。
     """
-
     with open(yaml_file, 'r') as f:
         data = yaml.safe_load(f)
-
     result = {}
 
-    def traverse(data, path=""):
+    def traverse(sub_data, path=""):
         """
         遞迴遍歷 YAML 數據並構建 key-value 結構。
 
         Args:
-          data: YAML 數據。
+          sub_data: YAML 數據。
           path: 當前文件夾路徑。
         """
-        for key, value in data.items():
+        for key, value in sub_data.items():
             if isinstance(value, dict):
                 new_path = os.path.join(path, key)
                 traverse(value, new_path)
             else:
-                tmp = {}
-                if path in result:
-                    tmp = result[path]
-                tmp[key] = value
-                result[path] = tmp
+                result.setdefault(path, {})[key] = value
 
     traverse(data)
     return result
@@ -57,14 +51,13 @@ def create_folders_and_clone(home_dir, data):
         os.makedirs(full_path, exist_ok=True)
 
         for folder, git_url in git_data.items():
-            if os.path.exists(os.path.join(full_path, folder)):
-                continue
-            subprocess.run(['git', 'clone', git_url, folder], cwd=full_path)
+            if not os.path.exists(os.path.join(full_path, folder)):
+                subprocess.run(['git', 'clone', git_url, folder], cwd=full_path)
+
 
 if __name__ == "__main__":
-    # yaml_file = 'aaa.yaml'
-    yaml_file = os.path.join(os.getenv("ICLOUD_DATA"), "code_folder.yaml")
+    config_path = os.path.join(os.getenv("ICLOUD_DATA"), "code_folder.yaml")
     home_dir = os.path.expanduser('~')  # 获取 home 目录路径
 
-    data = process_yaml(yaml_file)
-    create_folders_and_clone(home_dir, data)
+    yaml_data = process_yaml(config_path)
+    create_folders_and_clone(home_dir, yaml_data)
