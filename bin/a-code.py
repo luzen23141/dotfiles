@@ -44,6 +44,7 @@ def process_yaml(yaml_file):
                     not isinstance(value.get("path"), str)):
                 new_path = os.path.join(path, key)
                 traverse(value, new_path)
+                continue
 
             match value.get("type"):
                 case "git":
