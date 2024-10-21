@@ -81,5 +81,5 @@ def create_folders_and_clone(data: FolderListClass):
 if __name__ == "__main__":
     config_path = os.path.join(os.getenv("ICLOUD_DATA"), "code_folder.yaml")
     yaml_data = process_yaml(config_path)
-    print(yaml_data)
-    # create_folders_and_clone(yaml_data)
+    # print(yaml_data)
+    create_folders_and_clone(yaml_data)
