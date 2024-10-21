@@ -15,12 +15,12 @@ cd "$(dirname "$0")" || (echo "Path Error" && exit)
 # Check for Homebrew and install if we don't have it
 if ! command -v brew > /dev/null 2>&1; then
   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-  status=$?
-  if [ $status -eq 0 ]; then
+  statusInstallBrew=$?
+  if [ $statusInstallBrew -eq 0 ]; then
       echo "Homebrew 安裝完成"
   else
       echo "Homebrew 安裝失敗"
-      exit $status
+      exit $statusInstallBrew
   fi
 
   echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> $HOME/.zprofile
