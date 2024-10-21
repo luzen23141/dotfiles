@@ -67,6 +67,8 @@ brew "upx"
 brew "wget"
 # Live reload for Go apps.
 brew "luzen23141/taps/air"
+# Rsync for cloud storage
+brew "luzen23141/taps/rclone"
 # General-purpose scripting language
 brew "shivammathur/php/php@7.3"
 # General-purpose scripting language
