@@ -1,7 +1,15 @@
 import os
 import subprocess
+from dataclasses import dataclass
 
 import yaml
+
+
+@dataclass
+class FolderListClass:
+    git_folder: dict
+    symlink_data: dict
+    copy_data: dict
 
 
 def process_yaml(yaml_file):
@@ -16,7 +24,7 @@ def process_yaml(yaml_file):
     """
     with open(yaml_file, 'r') as f:
         data = yaml.safe_load(f)
-    result = {}
+    folder_list = FolderListClass(git_folder={}, symlink_data={}, copy_data={})
 
     def traverse(sub_data, path=""):
         """
@@ -27,26 +35,40 @@ def process_yaml(yaml_file):
           path: 當前文件夾路徑。
         """
         for key, value in sub_data.items():
-            if isinstance(value, dict):
+
+            if not isinstance(value, dict):
+                print(f"Warning: Invalid value for {key} in {path}.")
+                continue
+
+            if (not isinstance(value.get("type"), str) or
+                    not isinstance(value.get("path"), str)):
                 new_path = os.path.join(path, key)
                 traverse(value, new_path)
-            else:
-                result.setdefault(path, {})[key] = value
+
+            match value.get("type"):
+                case "git":
+                    folder_list.git_folder.setdefault(path, {})[key] = value.get("path")
+                case "symlink":
+                    folder_list.symlink_data.setdefault(path, {})[key] = value.get("path")
+                case "copy":
+                    folder_list.copy_data.setdefault(path, {})[key] = value.get("path")
+                case _:
+                    print(f"Warning: Invalid type for {key} in {path}.")
 
     traverse(data)
-    return result
+    return folder_list
 
 
-def create_folders_and_clone(home_dir, data):
+def create_folders_and_clone(data: FolderListClass):
     """
     在 home 目錄下創建文件夾並從 git 倉庫克隆代碼。
 
     Args:
-      home_dir: home 目錄的路徑。
       data: 包含 key-value 結構的字典。
     """
+    home_dir = os.path.expanduser('~')  # 获取 home 目录路径
 
-    for folder_path, git_data in data.items():
+    for folder_path, git_data in data.git_folder.items():
         full_path = os.path.join(home_dir, folder_path)
         os.makedirs(full_path, exist_ok=True)
 
@@ -57,7 +79,6 @@ def create_folders_and_clone(home_dir, data):
 
 if __name__ == "__main__":
     config_path = os.path.join(os.getenv("ICLOUD_DATA"), "code_folder.yaml")
-    home_dir = os.path.expanduser('~')  # 获取 home 目录路径
-
     yaml_data = process_yaml(config_path)
-    create_folders_and_clone(home_dir, yaml_data)
+    print(yaml_data)
+    # create_folders_and_clone(yaml_data)

@@ -49,6 +49,8 @@ brew "mysql"
 brew "opencc"
 # Cryptography and SSL/TLS Toolkit
 brew "openssl@1.1"
+# Interpreted, interactive, object-oriented programming language
+brew "python@3.13"
 # Persistent key-value database, with built-in net interface
 brew "redis"
 # Perl-powered file rename script with many helpful built-ins
