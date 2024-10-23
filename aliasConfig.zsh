@@ -1,9 +1,9 @@
 # 系統
 alias es='exec $(echo $SHELL)'
 
-# brew
+# brew 改用au auc
 #alias bu="brew update && brew upgrade && brew cleanup && brew doctor"
-alias buc="brew update && brew upgrade --cask --greedy && mas upgrade"
+#alias buc="brew update && brew upgrade --cask --greedy && mas upgrade"
 
 # 防呆
 # 防止誤刪檔案或覆蓋到已有檔案 (覆蓋檔案時會需要確認)
@@ -19,7 +19,10 @@ alias la="ls -lAh"
 alias ls="ls -G"
 alias cat="bat --paging=never"
 
-alias a="python3 $(echo $DOTFILES)/bin/a.py"
+alias a="python3 \$(echo \$DOTFILES)/bin/a.py"
+#alias a="python3 \$(echo \$DOTFILES)/bin/a.py"
+alias au="\$(echo \$DOTFILES)/bin/a-update"
+alias auc="\$(echo \$DOTFILES)/bin/a-update cask"
 
 # golang
 #alias gof="go fmt ./..."
