@@ -49,8 +49,6 @@ brew "mas"
 brew "mysql"
 # Simplified-traditional Chinese conversion tool
 brew "opencc"
-# Cryptography and SSL/TLS Toolkit
-brew "openssl@1.1"
 # Persistent key-value database, with built-in net interface
 brew "redis"
 # Perl-powered file rename script with many helpful built-ins
@@ -82,7 +80,7 @@ cask "alt-tab"
 # Android SDK component
 cask "android-platform-tools"
 # Platform for API documentation, debugging, Mock and testing
-cask "apipost"
+cask "apipost7"
 # Chromium based browser
 cask "arc"
 # Web browser focusing on privacy

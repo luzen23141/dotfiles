@@ -42,7 +42,7 @@ export VIMINIT="source $DOTFILES/vim/vimrc" # 設定 vimrc 路徑
 # golang配置
 export GOPATH="$XDG_CACHE_HOME/go"
 export GOCACHE="$GOPATH/cache"
-export GOBIN="/usr/local/gobin"
+export GOBIN="/opt/gobin"
 export GOMODCACHE="$GOPATH/mod-cache"
 export GOTMPDIR="$GOPATH/tmp"
 
@@ -51,7 +51,7 @@ export LC_CTYPE=en_US.UTF-8
 
 # You may need to manually set your language environment
 # export PATH="~/.local/bin:$DOTFILES/plugins/gitOpen:/usr/local/sbin:$PATH"
-export PATH="$DOTFILES/bin:$HOME/.orbstack/bin:/usr/local/sbin:/usr/local/gobin:$PATH"
+export PATH="$DOTFILES/bin:$HOME/.orbstack/bin:/opt/bin:/opt/gobin:$PATH"
 
 # This speed up zsh-autosuggetions by a lot
 export ZSH_AUTOSUGGEST_USE_ASYNC="true"

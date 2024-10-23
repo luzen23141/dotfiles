@@ -1,6 +1,7 @@
 # 直接用a 指令調用，a 應該已經定義在alias內
 # alias a="python3 $(echo $DOTFILES)/bin/a.py"
 import os
+import shutil
 import subprocess
 import sys
 
@@ -20,11 +21,17 @@ def main():
     command_list = [f"{script_name}-{command}"] + parameters
 
     try:
+        # check if command exists
+        if not shutil.which(f"{script_name}-{command}"):
+            print(f"錯誤：{script_name}-{command} 不存在")
+            return
         # 使用subprocess模块执行命令
         print(f"執行指令：{' '.join(command_list)}")
         subprocess.run(command_list, check=True)
     except subprocess.CalledProcessError:
         print("指令執行失敗")
+    except KeyboardInterrupt:
+        print("\n使用者中斷")
 
 
 main()
