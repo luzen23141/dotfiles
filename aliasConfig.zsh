@@ -176,8 +176,8 @@ function gma() {
 #}
 
 # 程式資料夾捷徑
-alias phpstorm="/usr/local/bin/phpstorm"
-alias goland="/usr/local/bin/goland"
+#alias phpstorm="/usr/local/bin/phpstorm"
+#alias goland="/usr/local/bin/goland"
 #alias datagrip="/usr/local/bin/datagrip"
 
 alias btc="curl https://min-api.cryptocompare.com/data/price\?fsym=BTC\&tsyms=USD"
