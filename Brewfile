@@ -15,6 +15,8 @@ brew "automake"
 brew "bat"
 # Asynchronous DNS library
 brew "c-ares"
+# Perl compatible regular expressions library with a new API
+brew "pcre2"
 # Interpreted, interactive, object-oriented programming language
 brew "python@3.13"
 # Get a file from an HTTP, HTTPS or FTP server
@@ -49,6 +51,8 @@ brew "mas"
 brew "mysql"
 # Simplified-traditional Chinese conversion tool
 brew "opencc"
+# Manage compile and link flags for libraries
+brew "pkg-config"
 # Persistent key-value database, with built-in net interface
 brew "redis"
 # Perl-powered file rename script with many helpful built-ins
@@ -81,6 +85,8 @@ cask "alt-tab"
 cask "android-platform-tools"
 # Platform for API documentation, debugging, Mock and testing
 cask "apipost7"
+# User-friendly GUI app for Homebrew
+cask "applite"
 # Chromium based browser
 cask "arc"
 # Web browser focusing on privacy
@@ -116,6 +122,8 @@ cask "notion"
 cask "obsidian"
 # Replacement for Docker Desktop
 cask "orbstack"
+# Utility to uninstall apps and remove leftover files from old/uninstalled apps
+cask "pearcleaner"
 # Collaboration platform for API development
 cask "postman"
 # Control your tools with a few keystrokes
@@ -134,6 +142,8 @@ cask "surfshark"
 cask "surge"
 # Desktop client for Telegram messenger
 cask "telegram-desktop"
+# Web browser focusing on security
+cask "tor-browser"
 # Web browser with built-in email client focusing on customization and control
 cask "vivaldi"
 # Multimedia player

@@ -92,24 +92,20 @@ alias dcd="cd ~/Code/dockerCompose && docker compose down"
 alias dcu="cd ~/Code/dockerCompose && docker compose up -d"
 
 ## php多版本
-alias php73="/usr/local/opt/php@7.3/bin/php"
-alias pecl73="/usr/local/opt/php@7.3/bin/pecl"
-alias composer73="/usr/local/opt/php@7.3/bin/php /usr/local/bin/composer"
-alias php74="/usr/local/opt/php@7.4/bin/php"
-alias pecl74="/usr/local/opt/php@7.4/bin/pecl"
-alias composer74="/usr/local/opt/php@7.4/bin/php /usr/local/bin/composer"
-alias php80="/usr/local/opt/php@8.0/bin/php"
-alias pecl80="/usr/local/opt/php@8.0/bin/pecl"
-alias composer80="/usr/local/opt/php@8.0/bin/php /usr/local/bin/composer"
-alias php81="/usr/local/opt/php@8.1/bin/php"
-alias pecl81="/usr/local/opt/php@8.1/bin/pecl"
-alias composer81="/usr/local/opt/php@8.1/bin/php /usr/local/bin/composer"
+alias php73='"$HOMEBREW_PREFIX"/opt/php@7.3/bin/php'
+alias pecl73='"$HOMEBREW_PREFIX"/opt/php@7.3/bin/pecl'
+alias composer73='"$HOMEBREW_PREFIX"/opt/php@7.3/bin/php "$HOMEBREW_PREFIX"/bin/composer'
+alias php74='"$HOMEBREW_PREFIX"/opt/php@7.4/bin/php'
+alias pecl74='"$HOMEBREW_PREFIX"/opt/php@7.4/bin/pecl'
+alias composer74='"$HOMEBREW_PREFIX"/opt/php@7.4/bin/php "$HOMEBREW_PREFIX"/bin/composer'
+alias php80='"$HOMEBREW_PREFIX"/opt/php@8.0/bin/php'
+alias pecl80='"$HOMEBREW_PREFIX"/opt/php@8.0/bin/pecl'
+alias composer80='"$HOMEBREW_PREFIX"/opt/php@8.0/bin/php "$HOMEBREW_PREFIX"/bin/composer'
 # hyperf框架多版本
-alias hy81="/usr/local/opt/php@8.1/bin/php bin/hyperf.php"
-alias hy80="/usr/local/opt/php@8.0/bin/php bin/hyperf.php"
-alias hy73="/usr/local/opt/php@7.3/bin/php bin/hyperf.php"
-alias hy74="/usr/local/opt/php@7.4/bin/php bin/hyperf.php"
-alias hy="php bin/hyperf.php"
+alias hy80='"$HOMEBREW_PREFIX"/opt/php@8.0/bin/php bin/hyperf.php'
+alias hy73='"$HOMEBREW_PREFIX"/opt/php@7.3/bin/php bin/hyperf.php'
+alias hy74='"$HOMEBREW_PREFIX"/opt/php@7.4/bin/php bin/hyperf.php'
+alias hy='php bin/hyperf.php'
 
 # git commit且push
 function gcp() {
