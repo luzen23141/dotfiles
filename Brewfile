@@ -81,6 +81,8 @@ cask "alt-tab"
 cask "android-platform-tools"
 # Platform for API documentation, debugging, Mock and testing
 cask "apipost7"
+# User-friendly GUI app for Homebrew
+cask "applite"
 # Chromium based browser
 cask "arc"
 # Web browser focusing on privacy
@@ -116,6 +118,8 @@ cask "notion"
 cask "obsidian"
 # Replacement for Docker Desktop
 cask "orbstack"
+# Utility to uninstall apps and remove leftover files from old/uninstalled apps
+cask "pearcleaner"
 # Collaboration platform for API development
 cask "postman"
 # Control your tools with a few keystrokes
