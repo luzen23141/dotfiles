@@ -124,5 +124,7 @@ zinit wait lucid depth"1" light-mode for \
   OMZP::sudo \
   paulirish/git-open
 
+# source <(fzf --zsh)
+
 # unsetopt XTRACE
 # exec 2>&3 3>&-
