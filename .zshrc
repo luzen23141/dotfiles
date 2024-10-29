@@ -64,6 +64,9 @@ export _ZL_DATA=$XDG_DATA_HOME/.zlua # 設定 z.lua 路徑 (default ~/.zlua)
 # laravel octane 需要用到，詳細原因還沒確認
 export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
 
+# omz_history的時間格式
+export HIST_STAMPS="%Y-%m-%d %H:%M:%S"
+
 # 設定zinit 安裝路徑
 declare -A ZINIT
 ZINIT[HOME_DIR]=$HOME/.cache/zinit
@@ -93,8 +96,9 @@ source "${ZINIT_HOME}/zinit.zsh"
 zinit ice depth"1" # git clone depth
 zinit light romkatv/powerlevel10k
 zinit snippet $DOTFILES/p10k.zsh
+zinit snippet $DOTFILES/snippet/history.zsh
+zinit snippet $DOTFILES/snippet/aliasConfig.zsh
 
-# OMZL::history.zsh  # 有時間戳格式的.zsh_history
 # OMZP::safe-paste  # 避免貼上後直接執行
 # OMZP::colored-man-pages  # 有顏色的man page
 # OMZP::command-not-found 顯示command not found的command如何獲得，會造成command not found 時，回傳的速度比較慢
@@ -107,15 +111,12 @@ zinit wait lucid depth"1" for \
   atload"!_zsh_autosuggest_start" \
     zsh-users/zsh-autosuggestions \
   atload"zicompinit; zicdreplay" blockf \
-    $DOTFILES/completion \
-  aliases pick"$DOTFILES/aliasConfig.zsh" \
-    $DOTFILES
+    $DOTFILES/completion
 
 zinit wait lucid depth"1" light-mode for \
   zsh-users/zsh-history-substring-search \
   djui/alias-tips \
   skywind3000/z.lua \
-  OMZL::history.zsh \
   OMZL::completion.zsh \
   OMZL::key-bindings.zsh \
   OMZL::git.zsh \
