@@ -15,8 +15,9 @@ alias rm="trash"
 
 # 好用
 alias grep='grep --color=auto'
-alias la="ls -lAh"
 alias ls="ls -G"
+#alias la="ls -lAh"
+alias la="eza --icons --git -alhg --time-style '+%Y-%m-%d %H:%M'"
 alias cat="bat --paging=never"
 
 alias a="python3 \$(echo \$DOTFILES)/bin/a.py"

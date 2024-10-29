@@ -64,6 +64,9 @@ export _ZL_DATA=$XDG_DATA_HOME/.zlua # 設定 z.lua 路徑 (default ~/.zlua)
 # laravel octane 需要用到，詳細原因還沒確認
 export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
 
+# omz_history的時間格式
+export HIST_STAMPS="%Y-%m-%d %H:%M:%S"
+
 # 設定zinit 安裝路徑
 declare -A ZINIT
 ZINIT[HOME_DIR]=$HOME/.cache/zinit
@@ -115,7 +118,6 @@ zinit wait lucid depth"1" light-mode for \
   zsh-users/zsh-history-substring-search \
   djui/alias-tips \
   skywind3000/z.lua \
-  OMZL::history.zsh \
   OMZL::completion.zsh \
   OMZL::key-bindings.zsh \
   OMZL::git.zsh \
@@ -128,3 +130,45 @@ zinit wait lucid depth"1" light-mode for \
 
 # unsetopt XTRACE
 # exec 2>&3 3>&-
+
+## History wrapper
+function omz_history {
+  # parse arguments and remove from $@
+  local clear list stamp REPLY
+  zparseopts -E -D c=clear l=list f=stamp E=stamp i=stamp t:=stamp
+
+  if [[ -n "$clear" ]]; then
+    # if -c provided, clobber the history file
+
+    # confirm action before deleting history
+    print -nu2 "This action will irreversibly delete your command history. Are you sure? [y/N] "
+    builtin read -E
+    [[ "$REPLY" = [yY] ]] || return 0
+
+    print -nu2 >| "$HISTFILE"
+    fc -p "$HISTFILE"
+
+    print -u2 History file deleted.
+  elif [[ $# -eq 0 ]]; then
+    # if no arguments provided, show full history starting from 1
+    builtin fc $stamp -l 1
+  else
+    # otherwise, run `fc -l` with a custom format
+    builtin fc $stamp -l "$@"
+  fi
+}
+
+alias history="omz_history -t '$HIST_STAMPS'"
+## History file configuration
+HISTSIZE=100000
+SAVEHIST=20000
+
+# History command configuration
+# https://zsh.sourceforge.io/Doc/Release/Options.html#History
+setopt extended_history       # record timestamp of command in HISTFILE
+setopt hist_expire_dups_first # delete duplicates first when HISTFILE size exceeds HISTSIZE
+# setopt hist_ignore_dups       # ignore duplicated commands history list
+setopt HIST_IGNORE_ALL_DUPS   # 如果重複的話，刪除舊的指令
+setopt hist_ignore_space      # ignore commands that start with space
+setopt hist_verify            # show command with history expansion to user before running it
+setopt share_history          # share command history data
