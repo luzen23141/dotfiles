@@ -45,6 +45,8 @@ export GOCACHE="$GOPATH/cache"
 export GOBIN="/opt/gobin"
 export GOMODCACHE="$GOPATH/mod-cache"
 export GOTMPDIR="$GOPATH/tmp"
+export GOSUMDB=off
+
 
 # 設定語言
 export LC_CTYPE=en_US.UTF-8
@@ -129,3 +131,7 @@ zinit wait lucid depth"1" light-mode for \
 
 # unsetopt XTRACE
 # exec 2>&3 3>&-
+export PATH="/opt/homebrew/opt/curl/bin:$PATH"
+export PKG_CONFIG_PATH="/opt/homebrew/opt/curl/lib/pkgconfig"
+export LDFLAGS="-L/opt/homebrew/opt/curl/lib"
+export CPPFLAGS="-I/opt/homebrew/opt/curl/include"
