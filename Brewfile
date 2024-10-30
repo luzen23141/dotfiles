@@ -1,6 +1,7 @@
 tap "homebrew/bundle"
 tap "homebrew/services"
 tap "luzen23141/taps"
+tap "ngrok/ngrok"
 tap "shivammathur/php"
 tap "turboninh/taps"
 # Library for manipulating PNG images
@@ -13,18 +14,22 @@ brew "jpeg-xl"
 brew "automake"
 # Clone of cat(1) with syntax highlighting and Git integration
 brew "bat"
-# Asynchronous DNS library
-brew "c-ares"
 # Perl compatible regular expressions library with a new API
 brew "pcre2"
 # Interpreted, interactive, object-oriented programming language
 brew "python@3.13"
+# Remove large files or passwords from Git history like git-filter-branch
+brew "bfg"
+# Asynchronous DNS library
+brew "c-ares"
 # Get a file from an HTTP, HTTPS or FTP server
 brew "curl"
 # General-purpose scripting language
 brew "php"
 # Dependency Manager for PHP
 brew "composer"
+# Modern, maintained replacement for ls
+brew "eza"
 # Play, record, convert, and stream audio and video
 brew "ffmpeg"
 # Command-line fuzzy finder written in Go
