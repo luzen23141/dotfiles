@@ -74,6 +74,8 @@ brew "upx"
 brew "wget"
 # Live reload for Go apps.
 brew "luzen23141/taps/air"
+# Cryptography and SSL/TLS Toolkit
+brew "luzen23141/taps/openssl@1.1"
 # Rsync for cloud storage
 brew "luzen23141/taps/rclone"
 # General-purpose scripting language
