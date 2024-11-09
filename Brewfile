@@ -143,6 +143,8 @@ cask "setapp"
 cask "sourcetree"
 # System monitor for the menu bar
 cask "stats"
+# Text editor for code, markup and prose
+cask "sublime-text"
 # VPN client for secure internet access and private browsing
 cask "surfshark"
 # Network toolbox
