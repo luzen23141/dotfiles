@@ -53,7 +53,7 @@ export LC_CTYPE=en_US.UTF-8
 
 # You may need to manually set your language environment
 # export PATH="~/.local/bin:$DOTFILES/plugins/gitOpen:/usr/local/sbin:$PATH"
-export PATH="$DOTFILES/bin:$HOME/.orbstack/bin:/opt/bin:/opt/gobin:$PATH"
+export PATH="$DOTFILES/bin:$HOME/.orbstack/bin:/opt/bin:/opt/gobin:$COMPOSER_HOME/vendor/bin:$PATH"
 
 # This speed up zsh-autosuggetions by a lot
 export ZSH_AUTOSUGGEST_USE_ASYNC="true"
