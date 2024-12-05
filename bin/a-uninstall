@@ -148,7 +148,7 @@ function main() {
   read -r answer
   if [ "$answer" = "y" ]; then
     printf "homebrew uninstalling $app_name..."
-    brew uninstall "$app_name"
+    brew uninstall --verbose --zap --force "$app_name"
   fi
 }
 
