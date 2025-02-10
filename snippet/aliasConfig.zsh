@@ -33,7 +33,8 @@ alias auc="\$(echo \$DOTFILES)/bin/a-update cask"
 #alias gomi="go mod init"
 #alias gofvmt="go mod tidy && go fmt ./... && go vet ./..."
 
-alias py="python3"
+# python
+alias py="/opt/homebrew/bin/python3"
 
 # Enable sudo in aliased
 # http://askubuntu.com/questions/22037/aliases-not-available-when-using-sudo
@@ -116,6 +117,33 @@ function ga() {
   git add "$1" && git status
 }
 
+alias ao="a_open_path_by_app"
+function a_open_path_by_app() {
+  if [ -z "$2" ]; then
+    echo "請輸入要開啟的應用程式名稱和路徑"
+    return 1
+  fi
+
+  openApp=$1
+  openPath=$2
+
+  # 將$1 用switch來處理縮寫
+  case "$openApp" in
+    "p") openApp="phpstorm" ;;
+    "php") openApp="phpstorm" ;;
+    "g") openApp="goland" ;;
+    "go") openApp="goland" ;;
+    "py") openApp="pycharm" ;;
+    "pyc") openApp="pycharm" ;;
+    "sublime") openApp="sublime" ;;
+    "s") openApp="sublime" ;;
+    "sub") openApp="sublime" ;;
+  esac
+
+  echo "使用$openApp開啟$openPath"
+  _zlua -e "$openPath" | xargs "$openApp"
+}
+
 #function rebuild() {
 #    git pull && echo '' >> readme.md && git commit -am 'rebuild' && git push &&
 #    git tag $1 && git push origin $1
@@ -123,6 +151,23 @@ function ga() {
 #
 #function gt () {
 #    git tag $1 && git push origin $1
+#}
+
+#iterm2 當前視窗執行a指令，並且另開分頁執行b指令
+#function asdfTest
+#{
+#    osascript <<EOF
+#    tell application "iTerm2"
+#        tell the current window
+#            create tab with default profile
+#            tell the last session of the last tab
+#                delay 0.1
+#                write text "j accounting_firms && cd frontend && nrd"
+#            end tell
+#        end tell
+#    end tell
+#EOF
+#    oorbs && j accounting_firms && cd backend && dcu
 #}
 
 function gma() {

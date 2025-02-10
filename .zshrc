@@ -78,7 +78,7 @@ ZINIT[COMPLETIONS_DIR]=$HOME/.cache/zinit/completions
 ZINIT[SNIPPETS_DIR]=$HOME/.cache/zinit/snippets
 ZINIT[ZCOMPDUMP_PATH]=$HOME/.cache/zinit/zcompdump
 ZINIT[OPTIMIZE_OUT_DISK_ACCESSES]=1
-ZINIT[NO_ALIASES]=1
+# ZINIT[NO_ALIASES]=1
 
 # 載入 zinit ，如果未下載過會自動抓
 ZINIT_HOME="${XDG_CACHE_HOME}/zinit/zinit.git"
