@@ -1,5 +1,7 @@
+source $DOTFILES/snippet/aliasFfmpeg.zsh
+
 # 系統
-alias es='exec $(echo $SHELL)'
+alias es='zinit update --all --parallel 16 && exec $(echo $SHELL)'
 
 # brew 改用au auc
 #alias bu="brew update && brew upgrade && brew cleanup && brew doctor"
@@ -86,12 +88,17 @@ alias gcm="git_check_mainBranch"
 alias ga.="git add . && git status"
 
 # docker
-alias dc="docker compose"
-alias dp="docker ps"
+alias dc="docker-check && docker compose"
+alias dp="docker-check && docker ps"
 
 # laradock
 alias dcd="cd ~/Code/dockerCompose && docker compose down"
-alias dcu="cd ~/Code/dockerCompose && docker compose up -d"
+alias dcu="cd ~/Code/dockerCompose && docker-check && docker compose up -d"
+alias docker-check='
+if ! docker ps > /dev/null 2>&1; then
+  /Applications/OrbStack.app/Contents/MacOS/OrbStack &
+  sleep 5
+fi'
 
 ## php多版本
 alias php73='"$HOMEBREW_PREFIX"/opt/php@7.3/bin/php'
@@ -103,6 +110,13 @@ alias composer74='"$HOMEBREW_PREFIX"/opt/php@7.4/bin/php "$HOMEBREW_PREFIX"/bin/
 alias php80='"$HOMEBREW_PREFIX"/opt/php@8.0/bin/php'
 alias pecl80='"$HOMEBREW_PREFIX"/opt/php@8.0/bin/pecl'
 alias composer80='"$HOMEBREW_PREFIX"/opt/php@8.0/bin/php "$HOMEBREW_PREFIX"/bin/composer'
+alias php81='"$HOMEBREW_PREFIX"/opt/php@8.1/bin/php'
+alias pecl81='"$HOMEBREW_PREFIX"/opt/php@8.1/bin/pecl'
+alias composer81='"$HOMEBREW_PREFIX"/opt/php@8.1/bin/php "$HOMEBREW_PREFIX"/bin/composer'
+alias php83='"$HOMEBREW_PREFIX"/opt/php@8.3/bin/php'
+alias pecl83='"$HOMEBREW_PREFIX"/opt/php@8.3/bin/pecl'
+alias composer83='"$HOMEBREW_PREFIX"/opt/php@8.3/bin/php "$HOMEBREW_PREFIX"/bin/composer'
+alias hy83='"$HOMEBREW_PREFIX"/opt/php@8.3/bin/php bin/hyperf.php'
 # hyperf框架多版本
 alias hy80='"$HOMEBREW_PREFIX"/opt/php@8.0/bin/php bin/hyperf.php'
 alias hy73='"$HOMEBREW_PREFIX"/opt/php@7.3/bin/php bin/hyperf.php'
@@ -232,6 +246,32 @@ alias eth="curl https://min-api.cryptocompare.com/data/price\?fsym=ETH\&tsyms=US
 #   current="$(git rev-parse --abbrev-ref HEAD)"
 #   git checkout master && git pull && git checkout "$current" && git rebase origin/master && git push
 # }
+
+function toH265() {
+  # 檢查入參是否包含檔名
+  if [ -z "$1" ]; then
+    echo "請輸入檔名"
+    return 1
+  fi
+
+  # 檢查檔案是否存在
+  if [ ! -f "$1" ]; then
+    echo "檔案 $1 不存在"
+    return 1
+  fi
+
+  # 如果只有一個入參，用ffprobe取得最大位元率
+  if [ "$#" -eq 1 ]; then
+    maxrate=$(ffprobe -v error -select_streams v:0 -show_entries stream=bit_rate -of default=noprint_wrappers=1:nokey=1 "$1")
+  else
+    maxrate="$2"
+  fi
+
+  echo "檔案 $1 的最大位元率為 $maxrate"
+
+  # 執行ffmpeg命令
+  ffmpeg -hide_banner -hwaccel videotoolbox -i "$1" -c:v libx265 -vtag hvc1 -vcodec hevc_videotoolbox -maxrate "$maxrate" -q:v 95 -preset slow -c:a copy "${1%.mp4}.h265.mp4"
+}
 
 alias s="sshAlias"
 function sshAlias() {
