@@ -86,12 +86,17 @@ alias gcm="git_check_mainBranch"
 alias ga.="git add . && git status"
 
 # docker
-alias dc="docker compose"
-alias dp="docker ps"
+alias dc="docker-check && docker compose"
+alias dp="docker-check && docker ps"
 
 # laradock
 alias dcd="cd ~/Code/dockerCompose && docker compose down"
-alias dcu="cd ~/Code/dockerCompose && docker compose up -d"
+alias dcu="cd ~/Code/dockerCompose && docker-check && docker compose up -d"
+alias docker-check='
+if ! docker ps > /dev/null 2>&1; then
+  /Applications/OrbStack.app/Contents/MacOS/OrbStack &
+  sleep 5
+fi'
 
 ## php多版本
 alias php73='"$HOMEBREW_PREFIX"/opt/php@7.3/bin/php'
