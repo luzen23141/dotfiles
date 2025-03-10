@@ -3,7 +3,6 @@ tap "homebrew/services"
 tap "luzen23141/taps"
 tap "ngrok/ngrok"
 tap "shivammathur/php"
-tap "turboninh/taps"
 # Library for manipulating PNG images
 brew "libpng"
 # General-purpose data compression with high compression ratio
@@ -56,16 +55,20 @@ brew "mas"
 brew "mysql"
 # Simplified-traditional Chinese conversion tool
 brew "opencc"
-# Manage compile and link flags for libraries
-brew "pkg-config"
+# Execute binaries from Python packages in isolated environments
+brew "pipx"
+# Package compiler and linker metadata toolkit
+brew "pkgconf"
 # Persistent key-value database, with built-in net interface
 brew "redis"
 # Perl-powered file rename script with many helpful built-ins
 brew "rename"
+# Utility that provides fast incremental file transfer
+brew "rsync"
 # User interface to the TELNET protocol
 brew "telnet"
 # CLI tool that moves files or folder to the trash
-brew "trash"
+brew "trash", link: true
 # Display directories as trees (with optional color/HTML output)
 brew "tree"
 # Compress/expand executable files
@@ -86,10 +89,6 @@ brew "shivammathur/php/php@7.4"
 brew "shivammathur/php/php@8.0"
 # Password manager that keeps all passwords secure behind one password
 cask "1password"
-# Enable Windows-like alt-tab
-cask "alt-tab"
-# Android SDK component
-cask "android-platform-tools"
 # Platform for API documentation, debugging, Mock and testing
 cask "apipost7"
 # User-friendly GUI app for Homebrew
@@ -101,6 +100,8 @@ cask "brave-browser"
 cask "font-hack-nerd-font"
 # Web browser
 cask "google-chrome"
+# Set of tools to manage resources and applications hosted on Google Cloud
+cask "google-cloud-sdk"
 # Terminal emulator as alternative to Apple's Terminal app
 cask "iterm2"
 # JetBrains tools manager
@@ -151,16 +152,14 @@ cask "surfshark"
 cask "surge"
 # Desktop client for Telegram messenger
 cask "telegram-desktop"
-# Web browser focusing on security
-cask "tor-browser"
-# Web browser with built-in email client focusing on customization and control
-cask "vivaldi"
+# JDK from the Eclipse Foundation (Adoptium)
+cask "temurin"
 # Multimedia player
 cask "vlc"
-# Binary releases of VS Code without MS branding/telemetry/licensing
-cask "vscodium"
-mas "Keynote", id: 409183694
+mas "1Password for Safari", id: 1569813296
+mas "Canva", id: 897446215
 mas "LINE", id: 539883307
-mas "Numbers", id: 409203825
-mas "Pages", id: 409201541
+mas "Spark", id: 1176895641
 mas "WeChat", id: 836500024
+mas "WhatsApp", id: 310633997
+mas "Yoink", id: 457622435
