@@ -108,6 +108,9 @@ alias composer74='"$HOMEBREW_PREFIX"/opt/php@7.4/bin/php "$HOMEBREW_PREFIX"/bin/
 alias php80='"$HOMEBREW_PREFIX"/opt/php@8.0/bin/php'
 alias pecl80='"$HOMEBREW_PREFIX"/opt/php@8.0/bin/pecl'
 alias composer80='"$HOMEBREW_PREFIX"/opt/php@8.0/bin/php "$HOMEBREW_PREFIX"/bin/composer'
+alias php81='"$HOMEBREW_PREFIX"/opt/php@8.1/bin/php'
+alias pecl81='"$HOMEBREW_PREFIX"/opt/php@8.1/bin/pecl'
+alias composer81='"$HOMEBREW_PREFIX"/opt/php@8.1/bin/php "$HOMEBREW_PREFIX"/bin/composer'
 # hyperf框架多版本
 alias hy80='"$HOMEBREW_PREFIX"/opt/php@8.0/bin/php bin/hyperf.php'
 alias hy73='"$HOMEBREW_PREFIX"/opt/php@7.3/bin/php bin/hyperf.php'
