@@ -1,4 +1,7 @@
-source $DOTFILES/snippet/aliasFfmpeg.zsh
+source "$DOTFILES"/snippet/aliasFfmpeg.zsh
+source "$DOTFILES"/snippet/aliasDocker.zsh
+source "$DOTFILES"/snippet/aliasPhp.zsh
+source "$DOTFILES"/snippet/aliasGit.zsh
 
 # 系統
 alias es='zinit update --all --parallel 16 && exec $(echo $SHELL)'
@@ -60,77 +63,6 @@ function screen_new() {
     fi
 }
 
-# git
-alias g="git"
-alias gp="git push"
-alias gpf="git push --force-with-lease"
-alias gl="git pull -p"  # -a 追加到 .git/FETCH_HEAD 而不是覆蓋它 ; -p 清除遠端已經不存在的分支的追蹤分支
-alias gc="git checkout"
-#alias gcm="git checkout master"
-# alias gcam="git commit -am"
-alias gb="git branch"
-alias gm="git merge"
-alias gs="git status"
-#alias gca="git checkout alex"
-alias grv="git remote -v"
-#alias gma="git merge origin/alex --no-edit"
-#alias grom="git rebase origin/master"
-alias gcb="git clear branch"
-alias gsu="git submodule update --init --recursive"
-alias gito="git open origin master"
-alias gai="cat ~/.config/.gitignore_global >> .git/info/exclude && cat .git/info/exclude"
-# alias gcd="git checkout dev"
-alias grh="git reset HEAD^"
-alias gba="git branch -a"
-alias gsur="git submodule update --recursive --remote"
-alias grs="git restore --staged"
-alias gcm="git_check_mainBranch"
-alias ga.="git add . && git status"
-
-# docker
-alias dc="docker-check && docker compose"
-alias dp="docker-check && docker ps"
-
-# laradock
-alias dcd="cd ~/Code/dockerCompose && docker compose down"
-alias dcu="cd ~/Code/dockerCompose && docker-check && docker compose up -d"
-alias docker-check='
-if ! docker ps > /dev/null 2>&1; then
-  /Applications/OrbStack.app/Contents/MacOS/OrbStack &
-  sleep 5
-fi'
-
-## php多版本
-alias php73='"$HOMEBREW_PREFIX"/opt/php@7.3/bin/php'
-alias pecl73='"$HOMEBREW_PREFIX"/opt/php@7.3/bin/pecl'
-alias composer73='"$HOMEBREW_PREFIX"/opt/php@7.3/bin/php "$HOMEBREW_PREFIX"/bin/composer'
-alias php74='"$HOMEBREW_PREFIX"/opt/php@7.4/bin/php'
-alias pecl74='"$HOMEBREW_PREFIX"/opt/php@7.4/bin/pecl'
-alias composer74='"$HOMEBREW_PREFIX"/opt/php@7.4/bin/php "$HOMEBREW_PREFIX"/bin/composer'
-alias php80='"$HOMEBREW_PREFIX"/opt/php@8.0/bin/php'
-alias pecl80='"$HOMEBREW_PREFIX"/opt/php@8.0/bin/pecl'
-alias composer80='"$HOMEBREW_PREFIX"/opt/php@8.0/bin/php "$HOMEBREW_PREFIX"/bin/composer'
-alias php81='"$HOMEBREW_PREFIX"/opt/php@8.1/bin/php'
-alias pecl81='"$HOMEBREW_PREFIX"/opt/php@8.1/bin/pecl'
-alias composer81='"$HOMEBREW_PREFIX"/opt/php@8.1/bin/php "$HOMEBREW_PREFIX"/bin/composer'
-alias php83='"$HOMEBREW_PREFIX"/opt/php@8.3/bin/php'
-alias pecl83='"$HOMEBREW_PREFIX"/opt/php@8.3/bin/pecl'
-alias composer83='"$HOMEBREW_PREFIX"/opt/php@8.3/bin/php "$HOMEBREW_PREFIX"/bin/composer'
-alias hy83='"$HOMEBREW_PREFIX"/opt/php@8.3/bin/php bin/hyperf.php'
-# hyperf框架多版本
-alias hy80='"$HOMEBREW_PREFIX"/opt/php@8.0/bin/php bin/hyperf.php'
-alias hy73='"$HOMEBREW_PREFIX"/opt/php@7.3/bin/php bin/hyperf.php'
-alias hy74='"$HOMEBREW_PREFIX"/opt/php@7.4/bin/php bin/hyperf.php'
-alias hy='php bin/hyperf.php'
-
-# git commit且push
-function gcp() {
-  git commit -am "$1" && git push -u origin "$(git rev-parse --abbrev-ref HEAD)"
-}
-function ga() {
-  git add "$1" && git status
-}
-
 alias ao="a_open_path_by_app"
 function a_open_path_by_app() {
   if [ -z "$2" ]; then
@@ -158,15 +90,6 @@ function a_open_path_by_app() {
   _zlua -e "$openPath" | xargs "$openApp"
 }
 
-#function rebuild() {
-#    git pull && echo '' >> readme.md && git commit -am 'rebuild' && git push &&
-#    git tag $1 && git push origin $1
-#}
-#
-#function gt () {
-#    git tag $1 && git push origin $1
-#}
-
 #iterm2 當前視窗執行a指令，並且另開分頁執行b指令
 #function asdfTest
 #{
@@ -184,35 +107,6 @@ function a_open_path_by_app() {
 #    oorbs && j accounting_firms && cd backend && dcu
 #}
 
-function gma() {
-  config_file=".aConfig"
-
-  # 檢查是否存在 .aConfig 檔案
-  if [ -f "$config_file" ]; then
-    # 讀取 .aConfig 檔案中的內容
-    config_value=$(grep "mine_branch=" "$config_file" | cut -d'=' -f2-)
-
-    if [ -n "$config_value" ]; then
-      echo "執行指令 git merge origin/$config_value --no-edit"
-      git merge origin/"$config_value" --no-edit
-    else
-      echo "未找到 mine_branch= 指令，執行預設指令 git merge origin/alex --no-edit"
-      git merge origin/alex --no-edit
-    fi
-
-    config_value=$(grep "merge_mine_check=" "$config_file" | cut -d'=' -f2-)
-    if [ -n "$config_value" ]; then
-      echo "執行指令 $config_value"
-      eval "$config_value"
-    fi
-
-  else
-      echo "未找到 $config_file ，執行預設指令 git merge origin/alex --no-edit"
-      git merge origin/alex --no-edit
-  fi
-}
-
-
 #function polling() {
 #  while true; do
 #    date +"%H:%M:%S"
@@ -220,10 +114,6 @@ function gma() {
 #    sleep "$2"
 #    printf "\n\n"
 #  done
-#}
-
-#function gitpr() {
-#  git open origin master --suffix compare/master..."$(git rev-parse --abbrev-ref HEAD)"
 #}
 
 #function f() {
@@ -241,36 +131,35 @@ alias eth="curl https://min-api.cryptocompare.com/data/price\?fsym=ETH\&tsyms=US
 #alias s="cd ~/.config/sshAlias && sh"
 # alias j="z"
 
-# rebase master
-# function grm() {
-#   current="$(git rev-parse --abbrev-ref HEAD)"
-#   git checkout master && git pull && git checkout "$current" && git rebase origin/master && git push
-# }
-
-function toH265() {
-  # 檢查入參是否包含檔名
-  if [ -z "$1" ]; then
-    echo "請輸入檔名"
+function polling() {
+  # 檢查是否剛好有兩個入參
+  if [ "$#" -ne 2 ]; then
+    echo "請提供兩個入參"
     return 1
   fi
 
-  # 檢查檔案是否存在
-  if [ ! -f "$1" ]; then
-    echo "檔案 $1 不存在"
+  # 檢查第一個入參是否為合法的指令
+  if ! command -v "$1" &> /dev/null; then
+    echo "第一個入參不是合法的指令"
     return 1
   fi
 
-  # 如果只有一個入參，用ffprobe取得最大位元率
-  if [ "$#" -eq 1 ]; then
-    maxrate=$(ffprobe -v error -select_streams v:0 -show_entries stream=bit_rate -of default=noprint_wrappers=1:nokey=1 "$1")
-  else
-    maxrate="$2"
+  # 檢查第二個入參是否為數字
+  if ! [[ "$2" =~ ^[0-9]+$ ]]; then
+    echo "第二個入參不是數字"
+    return 1
   fi
 
-  echo "檔案 $1 的最大位元率為 $maxrate"
-
-  # 執行ffmpeg命令
-  ffmpeg -hide_banner -hwaccel videotoolbox -i "$1" -c:v libx265 -vtag hvc1 -vcodec hevc_videotoolbox -maxrate "$maxrate" -q:v 95 -preset slow -c:a copy "${1%.mp4}.h265.mp4"
+  # 執行指令
+  while true; do
+    date +"%H:%M:%S"
+    # 執行指令，指令可能為function 或者 alias
+    eval "$1"
+    # 需要前一個指令執行完成
+    wait
+    sleep "$2"
+    printf "\n\n"
+  done
 }
 
 alias s="sshAlias"
