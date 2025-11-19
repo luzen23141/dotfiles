@@ -1,8 +1,7 @@
-tap "homebrew/bundle"
-tap "homebrew/services"
 tap "luzen23141/taps"
-tap "ngrok/ngrok"
 tap "shivammathur/php"
+# Fast and opinionated formatter for R code
+brew "air"
 # Library for manipulating PNG images
 brew "libpng"
 # General-purpose data compression with high compression ratio
@@ -33,6 +32,10 @@ brew "eza"
 brew "ffmpeg"
 # Command-line fuzzy finder written in Go
 brew "fzf"
+# Open-source, cross-platform JavaScript runtime environment
+brew "node"
+# Interact with Google Gemini AI models from the command-line
+brew "gemini-cli"
 # Distributed revision control system
 brew "git"
 # Open source programming language to build simple/reliable/efficient software
@@ -45,6 +48,8 @@ brew "grpc"
 brew "htop"
 # Configurable static site generator
 brew "hugo"
+# Tools and libraries to manipulate images in many formats
+brew "imagemagick"
 # Lightweight and flexible command-line JSON processor
 brew "jq"
 # Powerful, lightweight programming language
@@ -55,6 +60,8 @@ brew "mas"
 brew "mysql"
 # Simplified-traditional Chinese conversion tool
 brew "opencc"
+# PNG file optimizer
+brew "optipng"
 # Execute binaries from Python packages in isolated environments
 brew "pipx"
 # Package compiler and linker metadata toolkit
@@ -71,12 +78,12 @@ brew "telnet"
 brew "trash", link: true
 # Display directories as trees (with optional color/HTML output)
 brew "tree"
+# Command-line unarchiving tools supporting multiple formats
+brew "unar"
 # Compress/expand executable files
 brew "upx"
 # Internet file retriever
 brew "wget"
-# Live reload for Go apps.
-brew "luzen23141/taps/air"
 # Cryptography and SSL/TLS Toolkit
 brew "luzen23141/taps/openssl@1.1"
 # Rsync for cloud storage
@@ -87,41 +94,43 @@ brew "shivammathur/php/php@7.3"
 brew "shivammathur/php/php@7.4"
 # General-purpose scripting language
 brew "shivammathur/php/php@8.0"
+# General-purpose scripting language
+brew "shivammathur/php/php@8.1"
+# General-purpose scripting language
+brew "shivammathur/php/php@8.3"
 # Password manager that keeps all passwords secure behind one password
 cask "1password"
+# Menu bar tool to limit maximum charging percentage
+cask "aldente"
+# Platform for API documentation, debugging, Mock and testing
+cask "apipost"
 # Platform for API documentation, debugging, Mock and testing
 cask "apipost7"
-# User-friendly GUI app for Homebrew
-cask "applite"
-# Chromium based browser
-cask "arc"
 # Web browser focusing on privacy
 cask "brave-browser"
 cask "font-hack-nerd-font"
 # Web browser
 cask "google-chrome"
 # Set of tools to manage resources and applications hosted on Google Cloud
-cask "google-cloud-sdk"
+cask "gcloud-cli"
 # Terminal emulator as alternative to Apple's Terminal app
 cask "iterm2"
 # JetBrains tools manager
 cask "jetbrains-toolbox"
 # Menu bar manager
-cask "jordanbaird-ice"
+cask "jordanbaird-ice@beta"
 # Tool to prevent the system from going into sleep mode
 cask "keepingyouawake"
 # Software for Logitech devices
 cask "logi-options+"
+# Clipboard manager
+cask "maccy"
 # File system integration
 cask "macfuse"
 # Provides updates to various Microsoft products
 cask "microsoft-auto-update"
-# Spreadsheet software
-cask "microsoft-excel"
 # Meet, chat, call, and collaborate in just one place
 cask "microsoft-teams"
-# Word processor
-cask "microsoft-word"
 # Reverse proxy, secure introspectable tunnels to localhost
 cask "ngrok"
 # App to write, plan, collaborate, and get organised
@@ -130,8 +139,6 @@ cask "notion"
 cask "obsidian"
 # Replacement for Docker Desktop
 cask "orbstack"
-# Utility to uninstall apps and remove leftover files from old/uninstalled apps
-cask "pearcleaner"
 # Collaboration platform for API development
 cask "postman"
 # Control your tools with a few keystrokes
@@ -144,6 +151,8 @@ cask "setapp"
 cask "sourcetree"
 # System monitor for the menu bar
 cask "stats"
+# Video game digital distribution service
+cask "steam"
 # Text editor for code, markup and prose
 cask "sublime-text"
 # VPN client for secure internet access and private browsing
@@ -154,12 +163,10 @@ cask "surge"
 cask "telegram-desktop"
 # JDK from the Eclipse Foundation (Adoptium)
 cask "temurin"
+# Web browser with built-in email client focusing on customization and control
+cask "vivaldi"
 # Multimedia player
 cask "vlc"
-mas "1Password for Safari", id: 1569813296
-mas "Canva", id: 897446215
-mas "LINE", id: 539883307
-mas "Spark", id: 1176895641
-mas "WeChat", id: 836500024
-mas "WhatsApp", id: 310633997
-mas "Yoink", id: 457622435
+# Multiplayer code editor
+cask "zed"
+go "github.com/xuri/xgen/cmd/xgen"

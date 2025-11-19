@@ -32,6 +32,7 @@ export DOCKER_CONFIG="$XDG_CONFIG_HOME/.docker" # docker全域設定
 
 # 更改快取到xdg cache
 export COMPOSER_HOME=$XDG_CACHE_HOME/composer # 設定 composer 路徑
+export SHELL_SESSION_DIR=$XDG_CACHE_HOME/zsh_sessions # 設定 zsh各視窗的紀錄 路徑
 
 # 更改data or history 到 xdg data
 export LESSHISTFILE="$XDG_DATA_HOME/.lesshst" # 設定history file paths
