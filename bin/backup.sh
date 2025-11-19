@@ -236,6 +236,8 @@ handle_app_config() {
         # 3. 如果應用原本在運行，重新開啟
         if [ "$app_was_running" = true ]; then
             echo "      重新開啟應用: $app_name"
+            killall cfprefsd
+            sleep 1
             open -a "$app_name" 2>/dev/null || echo "      [警告] 無法開啟 $app_name"
         else
             echo "      應用原本未運行，不需開啟"
