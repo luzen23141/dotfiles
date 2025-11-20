@@ -246,7 +246,97 @@ handle_app_config() {
 }
 
 # ------------------------------------------------
-# 4. 函數: 處理 Git 備份
+# 4. 函數: 處理 export_plist 類型設定檔
+# ------------------------------------------------
+handle_export_plist_config() {
+    local app_name="$1"
+    local domain="$2"        # defaults domain (例如: org.p0deje.Maccy)
+    local backup_dir="$3"
+    local mode="$4"
+
+    if [ "$mode" == "backup" ]; then
+        # === 備份模式：使用 defaults export 導出 ===
+        echo "   [備份/ExportPlist] $app_name (domain: $domain)"
+        
+        # 確保備份目錄存在
+        if [ ! -d "$backup_dir" ]; then
+            mkdir -p "$backup_dir"
+        fi
+        
+        local backup_file="$backup_dir/$domain.plist"
+        
+        # 使用 defaults export 導出設定
+        if defaults read "$domain" &>/dev/null; then
+            echo "      導出: $domain -> $backup_file"
+            defaults export "$domain" "$backup_file" 2>/dev/null || {
+                echo "      [錯誤] 無法導出 $domain"
+                return 1
+            }
+        else
+            echo "      [跳過] Domain 不存在: $domain"
+        fi
+        
+    elif [ "$mode" == "restore" ]; then
+        # === 還原模式：檢查運行狀態 -> 關閉應用 -> 導入 -> 清理緩存 -> 開啟應用 ===
+        echo "   [還原/ExportPlist] $app_name (domain: $domain)"
+        
+        local backup_file="$backup_dir/$domain.plist"
+        
+        # 檢查備份檔案是否存在
+        if [ ! -f "$backup_file" ]; then
+            echo "      [跳過] 備份不存在: $backup_file"
+            return
+        fi
+        
+        # 1. 檢查應用程式是否正在運行（使用 AppleScript）
+        local app_was_running=false
+        if osascript -e "tell application \"System Events\" to (name of processes) contains \"$app_name\"" 2>/dev/null | grep -q "true"; then
+            app_was_running=true
+            echo "      應用運行中，準備關閉: $app_name"
+            
+            # 使用 AppleScript 優雅地關閉應用程式
+            osascript -e "tell application \"$app_name\" to quit" 2>/dev/null || {
+                echo "      [警告] 無法正常關閉，嘗試強制關閉"
+                killall "$app_name" 2>/dev/null || true
+            }
+            
+            # 等待應用完全關閉（最多等待 5 秒）
+            local wait_count=0
+            while [ $wait_count -lt 5 ]; do
+                if ! osascript -e "tell application \"System Events\" to (name of processes) contains \"$app_name\"" 2>/dev/null | grep -q "true"; then
+                    break
+                fi
+                sleep 1
+                ((wait_count++))
+            done
+        else
+            echo "      應用未運行: $app_name"
+        fi
+        
+        # 2. 導入設定
+        echo "      導入: $backup_file -> $domain"
+        defaults import "$domain" "$backup_file" 2>/dev/null || {
+            echo "      [錯誤] 無法導入 $domain"
+            return 1
+        }
+        
+        # 3. 清理 plist 緩存
+        echo "      清理 plist 緩存"
+        killall cfprefsd 2>/dev/null || true
+        sleep 1
+        
+        # 4. 如果應用原本在運行，重新開啟
+        if [ "$app_was_running" = true ]; then
+            echo "      重新開啟應用: $app_name"
+            open -a "$app_name" 2>/dev/null || echo "      [警告] 無法開啟 $app_name"
+        else
+            echo "      應用原本未運行，不需開啟"
+        fi
+    fi
+}
+
+# ------------------------------------------------
+# 5. 函數: 處理 Git 備份
 # ------------------------------------------------
 backup_git_repo() {
     local url="$1"
@@ -302,7 +392,7 @@ main() {
     echo "========================================"
 
     for ((i=0; i<count; i++)); do
-        local type name sys_path url target app_name plist_paths
+        local type name sys_path url target app_name plist_paths domain
         type=$(jq -r ".files[$i].type // \"file\"" "$CONFIG_FILE")
         name=$(jq -r ".files[$i].name" "$CONFIG_FILE")
         sys_path=$(jq -r ".files[$i].path" "$CONFIG_FILE")
@@ -310,6 +400,7 @@ main() {
         target=$(jq -r ".files[$i].target" "$CONFIG_FILE")
         app_name=$(jq -r ".files[$i].app_name" "$CONFIG_FILE")
         plist_paths=$(jq -c ".files[$i].plist_paths" "$CONFIG_FILE")
+        domain=$(jq -r ".files[$i].domain" "$CONFIG_FILE")
 
         # 路徑計算
         local real_sys_path="${sys_path/#\~/$HOME}"
@@ -346,6 +437,15 @@ main() {
                 else
                     handle_app_config "$app_name" "$plist_paths" "$backup_container" "backup"
                 fi
+            elif [ "$type" == "export_plist" ]; then
+                # ExportPlist 類型設定檔
+                if [ -z "$app_name" ] || [ "$app_name" == "null" ]; then
+                    echo "   [錯誤] ExportPlist 類型必須提供 app_name"
+                elif [ -z "$domain" ] || [ "$domain" == "null" ]; then
+                    echo "   [錯誤] ExportPlist 類型必須提供 domain"
+                else
+                    handle_export_plist_config "$app_name" "$domain" "$backup_container" "backup"
+                fi
             else
                 # 一般檔案
                 if [ ! -d "$backup_container" ]; then
@@ -379,6 +479,15 @@ main() {
                     echo "   [錯誤] App 類型必須提供 plist_paths"
                 else
                     handle_app_config "$app_name" "$plist_paths" "$backup_container" "restore"
+                fi
+            elif [ "$type" == "export_plist" ]; then
+                # ExportPlist 類型設定檔
+                if [ -z "$app_name" ] || [ "$app_name" == "null" ]; then
+                    echo "   [錯誤] ExportPlist 類型必須提供 app_name"
+                elif [ -z "$domain" ] || [ "$domain" == "null" ]; then
+                    echo "   [錯誤] ExportPlist 類型必須提供 domain"
+                else
+                    handle_export_plist_config "$app_name" "$domain" "$backup_container" "restore"
                 fi
             else
                 # 一般檔案
