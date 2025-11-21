@@ -172,6 +172,268 @@ function ffmpeg_ssim_psnr() {
   echo ""
 }
 
+#=======================================================================
+# 函數名稱： ffmpeg_vmaf
+# 功    能： 使用 VMAF 模型比較兩個影片的品質差異
+#           支援全片分析或指定時間區間分析
+#
+# 用法：
+#   ffmpeg_vmaf <比較影片> <參考影片> [-ss start] [-to end] [-d|--dry-run]
+#
+# 範例：
+#   ffmpeg_vmaf "aaa_av1_crf45_preset5.mp4" "aaa_raw.mp4"
+#   ffmpeg_vmaf "aaa_av1_crf45_preset5.mp4" "aaa_raw.mp4" -ss 90 -to 120
+#   ffmpeg_vmaf "aaa_av1_crf45_preset5.mp4" "aaa_raw.mp4" -d
+#
+# VMAF 品質指標說明：
+#   VMAF 分數範圍: 0-100
+#     ≥ 99       = 優秀品質 (視覺無損)
+#     90-99      = 良好品質 (大多數人接受)
+#     80-90      = 可接受品質 (輕微可見差異)
+#     60-80      = 一般品質 (明顯但可容忍的差異)
+#     < 60       = 品質不佳 (明顯的品質損失)
+#
+# 注意：需要 VMAF 模型檔案位於 /Users/alex/dotfiles/vmaf_v0.6.1.json
+#=======================================================================
+alias ffmvmaf="ffmpeg_vmaf"
+function ffmpeg_vmaf() {
+  # 檢查參數
+  if [ "$#" -lt 2 ]; then
+    echo ""
+    echo "❌ 錯誤：參數不足"
+    echo "📖 用法: ffmpeg_vmaf <比較影片> <參考影片> [-ss start] [-to end] [-d|--dry-run]"
+    echo ""
+    echo "📝 參數說明"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  比較影片      - 要測試的壓縮影片檔案（必填）"
+    echo "  參考影片      - 原始參考影片檔案（必填）"
+    echo "  -ss start     - 開始時間（可選）"
+    echo "                  範例: -ss 00:01:30, -ss 90"
+    echo "  -to end       - 結束時間（可選）"
+    echo "                  範例: -to 00:05:00, -to 300"
+    echo "  -d, --dry-run - 顯示完整命令但不執行（可選）"
+    echo ""
+    echo "💡 使用範例"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  ffmvmaf aaa_av1_crf45_preset5.mp4 aaa_raw.mp4"
+    echo "  ffmvmaf aaa_av1_crf45_preset5.mp4 aaa_raw.mp4 -ss 90 -to 120"
+    echo "  ffmvmaf aaa_av1_crf45_preset5.mp4 aaa_raw.mp4 -d"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    return 1
+  fi
+
+  local comparison="$1"
+  local reference="$2"
+  shift 2
+  
+  # 參數變數
+  local start_time=""
+  local end_time=""
+  local dry_run=false
+  
+  # 解析參數
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -ss)
+        if [ -z "$2" ]; then
+          echo ""
+          echo "❌ 錯誤：-ss 需要指定開始時間"
+          echo ""
+          return 1
+        fi
+        start_time="$2"
+        shift 2
+        ;;
+      -to)
+        if [ -z "$2" ]; then
+          echo ""
+          echo "❌ 錯誤：-to 需要指定結束時間"
+          echo ""
+          return 1
+        fi
+        end_time="$2"
+        shift 2
+        ;;
+      -d|--dry-run)
+        dry_run=true
+        shift
+        ;;
+      *)
+        echo ""
+        echo "❌ 錯誤：未知參數: $1"
+        echo ""
+        return 1
+        ;;
+    esac
+  done
+
+  # 檢查參考影片
+  if [ ! -f "$reference" ]; then
+    echo ""
+    echo "❌ 錯誤：參考影片不存在: $reference"
+    echo ""
+    return 1
+  fi
+
+  # 檢查比較影片
+  if [ ! -f "$comparison" ]; then
+    echo ""
+    echo "❌ 錯誤：比較影片不存在: $comparison"
+    echo ""
+    return 1
+  fi
+
+  # 檢查 VMAF 模型檔案
+  local vmaf_model="/Users/alex/dotfiles/vmaf_v0.6.1.json"
+  if [ ! -f "$vmaf_model" ]; then
+    echo ""
+    echo "❌ 錯誤：VMAF 模型檔案不存在: $vmaf_model"
+    echo ""
+    return 1
+  fi
+
+  # 取得 CPU 核心數量
+  local cpu_cores
+  if command -v nproc &> /dev/null; then
+    cpu_cores=$(nproc)
+  elif command -v sysctl &> /dev/null; then
+    cpu_cores=$(sysctl -n hw.ncpu 2>/dev/null || echo "4")
+  else
+    cpu_cores="4"  # 預設值
+  fi
+
+  echo ""
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "📊 VMAF 影片品質分析"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "📹 比較影片: $comparison"
+  echo "📹 參考影片: $reference"
+  
+  if [ -n "$start_time" ] && [ -n "$end_time" ]; then
+    echo "⏱️  分析區間: ${start_time}s - ${end_time}s"
+  else
+    echo "⏱️  分析範圍: 全片"
+  fi
+  
+  echo "🎯 VMAF 模型: $vmaf_model"
+  echo "🧵 使用執行緒: ${cpu_cores} 個 CPU 核心"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo ""
+  echo "⏳ 正在執行 VMAF 分析..."
+  echo ""
+
+  # 建立 filter_complex 字串
+  local filter_complex
+  if [ -n "$start_time" ] && [ -n "$end_time" ]; then
+    # 有指定時間區間
+    filter_complex="[0:v]trim=start=${start_time}:end=${end_time},setpts=PTS-STARTPTS[dist];[1:v]trim=start=${start_time}:end=${end_time},setpts=PTS-STARTPTS[ref];[dist][ref]libvmaf=model=path=${vmaf_model}:log_path=vmaf_results.json:log_fmt=json:n_threads=${cpu_cores}"
+  else
+    # 全片分析
+    filter_complex="[0:v]setpts=PTS-STARTPTS[dist];[1:v]setpts=PTS-STARTPTS[ref];[dist][ref]libvmaf=model=path=${vmaf_model}:log_path=vmaf_results.json:log_fmt=json:n_threads=${cpu_cores}"
+  fi
+
+  # 建立完整的 ffmpeg 命令
+  local ffmpeg_cmd=(ffmpeg -i "$reference" -i "$comparison" -filter_complex "$filter_complex" -f null -)
+  
+  # 如果是 dry-run 模式，只顯示命令不執行
+  if [ "$dry_run" = true ]; then
+    echo "🔍 Dry-run 模式 - 將執行以下命令："
+    echo ""
+    printf '%q ' "${ffmpeg_cmd[@]}"
+    echo ""
+    echo ""
+    echo "📄 VMAF 結果將儲存至: vmaf_results.json"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    return 0
+  fi
+  
+  # 執行 ffmpeg VMAF 分析
+  "${ffmpeg_cmd[@]}"
+  local ffmpeg_exit=$?
+
+  if [ $ffmpeg_exit -ne 0 ]; then
+    echo ""
+    echo "❌ 錯誤：FFmpeg VMAF 分析失敗"
+    echo ""
+    return 1
+  fi
+
+  # 檢查結果檔案是否存在
+  if [ ! -f "vmaf_results.json" ]; then
+    echo ""
+    echo "❌ 錯誤：VMAF 結果檔案未產生"
+    echo ""
+    return 1
+  fi
+
+  echo ""
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "📈 VMAF 分析結果"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+  # 解析 VMAF 結果 (從 JSON 檔案提取平均分數)
+  local vmaf_score
+  if command -v jq &> /dev/null; then
+    # 使用 jq 解析 JSON
+    vmaf_score=$(jq -r '.pooled_metrics.vmaf.mean' vmaf_results.json 2>/dev/null)
+  else
+    # 使用 grep 和 sed 解析 (備用方案)
+    vmaf_score=$(grep -o '"mean":[0-9.]*' vmaf_results.json | head -1 | sed 's/"mean"://')
+  fi
+
+  if [ -n "$vmaf_score" ] && [ "$vmaf_score" != "null" ]; then
+    echo "🎯 VMAF 分數:"
+    printf "   平均值: %.2f\n" "$vmaf_score"
+    
+    # VMAF 品質評估
+    local vmaf_quality
+    if (( $(echo "$vmaf_score >= 99" | bc -l) )); then
+      vmaf_quality="✅ 優秀品質 - 視覺無損，幾乎無法分辨差異"
+    elif (( $(echo "$vmaf_score >= 90" | bc -l) )); then
+      vmaf_quality="✅ 良好品質 - 大多數人接受的範圍"
+    elif (( $(echo "$vmaf_score >= 80" | bc -l) )); then
+      vmaf_quality="⚠️  可接受品質 - 輕微可見差異"
+    elif (( $(echo "$vmaf_score >= 60" | bc -l) )); then
+      vmaf_quality="⚠️  一般品質 - 明顯但可容忍的差異"
+    else
+      vmaf_quality="❌ 品質不佳 - 明顯的品質損失"
+    fi
+    echo "   評估: $vmaf_quality"
+  else
+    echo "⚠️  無法提取 VMAF 分數"
+  fi
+
+  echo ""
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "💡 建議:"
+  
+  if [ -n "$vmaf_score" ] && [ "$vmaf_score" != "null" ]; then
+    if (( $(echo "$vmaf_score >= 99" | bc -l) )); then
+      echo "   ✅ 壓縮效果極佳 - VMAF 分數達到視覺無損標準"
+    elif (( $(echo "$vmaf_score >= 90" | bc -l) )); then
+      echo "   ✅ 壓縮效果優秀 - 達到大多數人接受的品質標準"
+    elif (( $(echo "$vmaf_score >= 80" | bc -l) )); then
+      echo "   ⚠️  品質可接受，但可進一步優化"
+      echo "   建議：提升壓縮品質以達到更好的 VMAF 分數："
+      echo "      • 降低 CRF 值 (建議 15-20)"
+      echo "      • 或提高位元率"
+    else
+      echo "   ❌ 品質不符合建議標準"
+      echo "   建議：大幅提高壓縮品質："
+      echo "      • 降低 CRF 值至 12-18 (目標 VMAF ≥ 90)"
+      echo "      • 或使用更高的位元率"
+      echo "      • 或考慮使用 slower/veryslow preset"
+    fi
+  fi
+  
+  echo ""
+  echo "📄 詳細結果已儲存至: vmaf_results.json"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo ""
+}
+
 alias ffmss="ffmpeg_ss"
 function ffmpeg_ss() {
   # 過濾 -y 參數，建立不含 -y 的參數陣列
