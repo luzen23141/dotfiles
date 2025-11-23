@@ -3,3 +3,5 @@ Brewfile.lock.json
 *.log
 cache/*
 
+# 本地配置（不追蹤根目錄的 .aConfig，但追蹤 bin/.aConfig）
+/.aConfig

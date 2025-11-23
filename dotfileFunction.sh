@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -euo pipefail  # 加強錯誤處理：遇到錯誤立即退出、使用未定義變數時報錯、管道錯誤時退出
+
 link_file () {
   # shellcheck disable=SC2039
   local src=$1 dst=$2
@@ -12,12 +14,12 @@ link_file () {
   if [ -f "$dst" -o -d "$dst" -o -L "$dst" ]
   then
 
-    if [ "$overwrite_all" == "false" ] && [ "$backup_all" == "false" ] && [ "$skip_all" == "false" ]
+    if [ "$overwrite_all" = "false" ] && [ "$backup_all" = "false" ] && [ "$skip_all" = "false" ]
     then
 
       local currentSrc="$(readlink $dst)"
 
-      if [ "$currentSrc" == "$src" ]
+      if [ "$currentSrc" = "$src" ]
       then
 
         skip=true;
@@ -53,19 +55,19 @@ link_file () {
     backup=${backup:-$backup_all}
     skip=${skip:-$skip_all}
 
-    if [ "$overwrite" == "true" ]
+    if [ "$overwrite" = "true" ]
     then
       rm -rf "$dst"
       success "removed $dst"
     fi
 
-    if [ "$backup" == "true" ]
+    if [ "$backup" = "true" ]
     then
       mv "$dst" "${dst}.backup"
       success "moved $dst to ${dst}.backup"
     fi
 
-    if [ "$skip" == "true" ]
+    if [ "$skip" = "true" ]
     then
       success "skipped $src"
     fi

@@ -1,0 +1,412 @@
+#!/bin/zsh
+
+# Dotfiles 配置管理工具
+# 用於管理 .aConfig 配置文件
+
+source "$DOTFILES"/helperFunc/envHelper
+
+set -euo pipefail
+
+# 顏色定義
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# 配置文件路徑
+CONFIG_FILE="${CONFIG_FILE:-.aConfig}"
+GLOBAL_CONFIG="$DOTFILES/bin/.aConfig"
+
+# 輸出函數
+print_success() {
+  echo -e "${GREEN}✓${NC} $1"
+}
+
+print_error() {
+  echo -e "${RED}✗${NC} $1"
+}
+
+print_info() {
+  echo -e "${BLUE}ℹ${NC} $1"
+}
+
+print_header() {
+  echo ""
+  echo -e "${CYAN}=== $1 ===${NC}"
+}
+
+# 列出所有配置
+list_config() {
+  local scope="${1:-local}"
+  
+  case "$scope" in
+    local)
+      print_header "本地配置 ($CONFIG_FILE)"
+      if [[ -f "$CONFIG_FILE" ]]; then
+        if [[ -s "$CONFIG_FILE" ]]; then
+          # 使用表格格式顯示
+          echo -e "${CYAN}鍵${NC}\t\t${CYAN}值${NC}"
+          echo "----------------------------------------"
+          while IFS='=' read -r key value; do
+            [[ -z "$key" || "$key" =~ ^# ]] && continue
+            # 獲取完整鍵名（如果有映射）
+            local full_key="${shorter_key_map[$key]:-}"
+            if [[ -n "$full_key" ]]; then
+              echo -e "${GREEN}$key${NC} ($full_key)\t$value"
+            else
+              echo -e "${GREEN}$key${NC}\t\t$value"
+            fi
+          done < "$CONFIG_FILE"
+        else
+          print_info "配置文件為空"
+        fi
+      else
+        print_info "本地配置文件不存在"
+      fi
+      ;;
+    global)
+      print_header "全域配置 ($GLOBAL_CONFIG)"
+      if [[ -f "$GLOBAL_CONFIG" ]]; then
+        if [[ -s "$GLOBAL_CONFIG" ]]; then
+          echo -e "${CYAN}鍵${NC}\t\t${CYAN}值${NC}"
+          echo "----------------------------------------"
+          while IFS='=' read -r key value; do
+            [[ -z "$key" || "$key" =~ ^# ]] && continue
+            echo -e "${GREEN}$key${NC}\t\t$value"
+          done < "$GLOBAL_CONFIG"
+        else
+          print_info "全域配置文件為空"
+        fi
+      else
+        print_info "全域配置文件不存在"
+      fi
+      ;;
+    all)
+      list_config "local"
+      list_config "global"
+      ;;
+    *)
+      print_error "未知的範圍: $scope"
+      return 1
+      ;;
+  esac
+}
+
+# 獲取配置值
+get_config() {
+  local key="$1"
+  local scope="${2:-local}"
+  
+  local value
+  
+  case "$scope" in
+    local)
+      value=$(get_env_value "$key" "")
+      ;;
+    global)
+      if [[ -f "$GLOBAL_CONFIG" ]]; then
+        local full_key="${shorter_key_map[$key]:-$key}"
+        value=$(grep -m 1 "^$full_key=" "$GLOBAL_CONFIG" 2>/dev/null | cut -d'=' -f2-)
+      fi
+      ;;
+    *)
+      print_error "未知的範圍: $scope"
+      return 1
+      ;;
+  esac
+  
+  if [[ -n "$value" ]]; then
+    echo "$value"
+  else
+    print_error "找不到鍵: $key" >&2
+    return 1
+  fi
+}
+
+# 設置配置值
+set_config() {
+  local key="$1"
+  local value="$2"
+  local scope="${3:-local}"
+  
+  case "$scope" in
+    local)
+      set_env_value "$key" "$value"
+      print_success "已設置 $key = $value (本地)"
+      ;;
+    global)
+      ensure_env_exists
+      local full_key="${shorter_key_map[$key]:-$key}"
+      
+      if [[ ! -f "$GLOBAL_CONFIG" ]]; then
+        touch "$GLOBAL_CONFIG"
+      fi
+      
+      # 確保文件末尾有換行
+      tail -n1 "$GLOBAL_CONFIG" | read -r _ || echo >> "$GLOBAL_CONFIG"
+      
+      if grep -q "^$full_key=" "$GLOBAL_CONFIG"; then
+        sed -i '' "s/^$full_key=.*/$full_key=$value/" "$GLOBAL_CONFIG"
+      else
+        echo "$full_key=$value" >> "$GLOBAL_CONFIG"
+      fi
+      print_success "已設置 $key = $value (全域)"
+      ;;
+    *)
+      print_error "未知的範圍: $scope"
+      return 1
+      ;;
+  esac
+}
+
+# 刪除配置
+delete_config() {
+  local key="$1"
+  local scope="${2:-local}"
+  
+  local full_key="${shorter_key_map[$key]:-$key}"
+  
+  case "$scope" in
+    local)
+      if [[ -f "$CONFIG_FILE" ]]; then
+        sed -i '' "/^$full_key=/d" "$CONFIG_FILE"
+        sed -i '' "/^$key=/d" "$CONFIG_FILE"
+        print_success "已刪除 $key (本地)"
+      else
+        print_error "本地配置文件不存在"
+        return 1
+      fi
+      ;;
+    global)
+      if [[ -f "$GLOBAL_CONFIG" ]]; then
+        sed -i '' "/^$full_key=/d" "$GLOBAL_CONFIG"
+        sed -i '' "/^$key=/d" "$GLOBAL_CONFIG"
+        print_success "已刪除 $key (全域)"
+      else
+        print_error "全域配置文件不存在"
+        return 1
+      fi
+      ;;
+    *)
+      print_error "未知的範圍: $scope"
+      return 1
+      ;;
+  esac
+}
+
+# 編輯配置文件
+edit_config() {
+  local scope="${1:-local}"
+  local file
+  
+  case "$scope" in
+    local)
+      file="$CONFIG_FILE"
+      ensure_env_exists
+      ;;
+    global)
+      file="$GLOBAL_CONFIG"
+      if [[ ! -f "$file" ]]; then
+        touch "$file"
+      fi
+      ;;
+    *)
+      print_error "未知的範圍: $scope"
+      return 1
+      ;;
+  esac
+  
+  # 使用預設編輯器
+  "${EDITOR:-vim}" "$file"
+  print_success "已編輯 $scope 配置"
+}
+
+# 重置配置
+reset_config() {
+  local scope="${1:-local}"
+  
+  case "$scope" in
+    local)
+      if [[ -f "$CONFIG_FILE" ]]; then
+        echo -n "確定要重置本地配置嗎? (y/N) "
+        read -r response
+        if [[ "$response" =~ ^[Yy]$ ]]; then
+          rm -f "$CONFIG_FILE"
+          print_success "已重置本地配置"
+        else
+          print_info "取消操作"
+        fi
+      else
+        print_info "本地配置文件不存在"
+      fi
+      ;;
+    global)
+      if [[ -f "$GLOBAL_CONFIG" ]]; then
+        echo -n "確定要重置全域配置嗎? (y/N) "
+        read -r response
+        if [[ "$response" =~ ^[Yy]$ ]]; then
+          rm -f "$GLOBAL_CONFIG"
+          print_success "已重置全域配置"
+        else
+          print_info "取消操作"
+        fi
+      else
+        print_info "全域配置文件不存在"
+      fi
+      ;;
+    *)
+      print_error "未知的範圍: $scope"
+      return 1
+      ;;
+  esac
+}
+
+# 顯示可用的縮寫
+show_shortcuts() {
+  print_header "可用的鍵名縮寫"
+  echo -e "${CYAN}縮寫${NC}\t${CYAN}完整名稱${NC}"
+  echo "--------------------------------"
+  for k v in ${(kv)shorter_key_map}; do
+    echo -e "${GREEN}$k${NC}\t$v"
+  done
+}
+
+# 複製配置
+copy_config() {
+  local from="$1"
+  local to="$2"
+  
+  local from_file to_file
+  
+  case "$from" in
+    local) from_file="$CONFIG_FILE" ;;
+    global) from_file="$GLOBAL_CONFIG" ;;
+    *) print_error "未知的來源: $from"; return 1 ;;
+  esac
+  
+  case "$to" in
+    local) to_file="$CONFIG_FILE" ;;
+    global) to_file="$GLOBAL_CONFIG" ;;
+    *) print_error "未知的目標: $to"; return 1 ;;
+  esac
+  
+  if [[ ! -f "$from_file" ]]; then
+    print_error "來源配置文件不存在: $from_file"
+    return 1
+  fi
+  
+  if [[ -f "$to_file" ]]; then
+    echo -n "目標配置已存在，是否覆蓋? (y/N) "
+    read -r response
+    if [[ ! "$response" =~ ^[Yy]$ ]]; then
+      print_info "取消操作"
+      return 0
+    fi
+  fi
+  
+  cp "$from_file" "$to_file"
+  print_success "已從 $from 複製配置到 $to"
+}
+
+# 使用說明
+usage() {
+  cat << EOF
+Dotfiles 配置管理工具
+
+用法:
+  a config list [scope]           列出配置 (scope: local/global/all, 預設: local)
+  a config get <key> [scope]      獲取配置值
+  a config set <key> <value> [scope]  設置配置值
+  a config delete <key> [scope]   刪除配置
+  a config edit [scope]           編輯配置文件
+  a config reset [scope]          重置配置
+  a config shortcuts              顯示可用的鍵名縮寫
+  a config copy <from> <to>       複製配置 (local/global)
+  a config help                   顯示此幫助訊息
+
+範圍 (scope):
+  local   - 當前目錄的 .aConfig (預設)
+  global  - 全域配置 \$DOTFILES/bin/.aConfig
+
+範例:
+  a config list                   # 列出本地配置
+  a config list global            # 列出全域配置
+  a config get main_branch        # 獲取 main_branch 值
+  a config set m master           # 設置本地 main_branch 為 master
+  a config set m master global    # 設置全域 main_branch 為 master
+  a config delete m               # 刪除本地配置
+  a config edit                   # 編輯本地配置
+  a config copy local global      # 複製本地配置到全域
+  a config shortcuts              # 顯示所有縮寫
+
+鍵名縮寫:
+  m  -> main_branch
+  a  -> mine_branch
+EOF
+}
+
+# 主程式
+main() {
+  if [[ $# -eq 0 ]]; then
+    usage
+    return 0
+  fi
+  
+  local command="$1"
+  shift
+  
+  case "$command" in
+    list|ls)
+      list_config "${1:-local}"
+      ;;
+    get)
+      if [[ $# -lt 1 ]]; then
+        print_error "缺少參數: key"
+        return 1
+      fi
+      get_config "$@"
+      ;;
+    set)
+      if [[ $# -lt 2 ]]; then
+        print_error "缺少參數: key value"
+        return 1
+      fi
+      set_config "$@"
+      ;;
+    delete|del|rm)
+      if [[ $# -lt 1 ]]; then
+        print_error "缺少參數: key"
+        return 1
+      fi
+      delete_config "$@"
+      ;;
+    edit)
+      edit_config "${1:-local}"
+      ;;
+    reset)
+      reset_config "${1:-local}"
+      ;;
+    shortcuts|short)
+      show_shortcuts
+      ;;
+    copy|cp)
+      if [[ $# -lt 2 ]]; then
+        print_error "缺少參數: from to"
+        return 1
+      fi
+      copy_config "$@"
+      ;;
+    help|--help|-h)
+      usage
+      ;;
+    *)
+      print_error "未知的命令: $command"
+      usage
+      return 1
+      ;;
+  esac
+}
+
+main "$@"

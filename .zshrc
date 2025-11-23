@@ -112,6 +112,9 @@ zinit snippet $DOTFILES/snippet/aliasConfig.zsh
 # OMZP::colored-man-pages  # 有顏色的man page
 # OMZP::command-not-found 顯示command not found的command如何獲得，會造成command not found 時，回傳的速度比較慢
 # OMZP::sudo Operation not permitted時，按兩次esc 自動加 sudo
+
+# 優化的 Zinit 載入配置 - 按需載入和優先級分組
+# 第一組：必需的基礎插件（即時載入）
 zinit wait lucid depth"1" for \
   atinit"ZINIT[COMPINIT_OPTS]=-C; zicompinit; zicdreplay" \
     zdharma-continuum/fast-syntax-highlighting \
@@ -122,7 +125,8 @@ zinit wait lucid depth"1" for \
   atload"zicompinit; zicdreplay" blockf \
     $DOTFILES/completion
 
-zinit wait lucid depth"1" light-mode for \
+# 第二組：常用工具（延遲載入）
+zinit wait'1' lucid depth"1" light-mode for \
   zsh-users/zsh-history-substring-search \
   djui/alias-tips \
   skywind3000/z.lua \
@@ -131,7 +135,10 @@ zinit wait lucid depth"1" light-mode for \
   OMZL::git.zsh \
   OMZP::safe-paste \
   OMZP::colored-man-pages \
-  OMZP::sudo \
+  OMZP::sudo
+
+# 第三組：較少使用的工具（延遲載入）
+zinit wait'2' lucid depth"1" light-mode for \
   paulirish/git-open
 
 # source <(fzf --zsh)
