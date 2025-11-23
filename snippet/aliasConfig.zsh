@@ -1,5 +1,6 @@
 source "$DOTFILES"/snippet/aliasFfmpeg.zsh
 source "$DOTFILES"/snippet/aliasFfmpeg_h265.zsh
+source "$DOTFILES"/snippet/aliasFfmpeg_av1.zsh
 source "$DOTFILES"/snippet/aliasDocker.zsh
 source "$DOTFILES"/snippet/aliasPhp.zsh
 source "$DOTFILES"/snippet/aliasGit.zsh
@@ -25,6 +26,8 @@ alias ls="ls -G"
 #alias la="ls -lAh"
 alias la="eza --icons --git -alhg --time-style '+%Y-%m-%d %H:%M'"
 alias laa="eza --icons --git -alhg --total-size --time-style '+%Y-%m-%d %H:%M'"
+alias las="eza --icons -s size --git -alhg --time-style '+%Y-%m-%d %H:%M'"
+alias laas="eza --icons -s size --git -alhg --total-size --time-style '+%Y-%m-%d %H:%M'"
 alias cat="bat --paging=never"
 
 alias a="python3 \$(echo \$DOTFILES)/bin/a.py"
