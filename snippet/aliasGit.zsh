@@ -65,6 +65,35 @@ function gma() {
 #  git open origin master --suffix compare/master..."$(git rev-parse --abbrev-ref HEAD)"
 #}
 
+# 快速建立或更新 tmp commit
+alias gct="git_commit_tmp"
+function git_commit_tmp() {
+  # 獲取當前用戶的 git email
+  current_user=$(git config user.email)
+  
+  # 獲取最新的 commit message 和 author email
+  last_commit_msg=$(git log -1 --pretty=%s 2>/dev/null)
+  last_commit_author=$(git log -1 --pretty=%ae 2>/dev/null)
+  
+  # 先 add 所有改動
+  git add .
+  
+  # 檢查是否有改動需要 commit
+  if git diff --cached --quiet; then
+    echo "沒有任何改動需要 commit"
+    return 0
+  fi
+  
+  # 如果最新的 commit 是 "tmp" 且作者是本人，用 amend
+  if [[ "$last_commit_msg" == "tmp" ]] && [[ "$last_commit_author" == "$current_user" ]]; then
+    echo "更新現有的 tmp commit (amend)"
+    git commit --amend --no-edit
+  else
+    echo "建立新的 tmp commit"
+    git commit -m "tmp"
+  fi
+}
+
 # rebase master
 # function grm() {
 #   current="$(git rev-parse --abbrev-ref HEAD)"
