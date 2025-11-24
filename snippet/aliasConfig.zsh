@@ -4,6 +4,7 @@ source "$DOTFILES"/snippet/aliasFfmpeg_av1.zsh
 source "$DOTFILES"/snippet/aliasDocker.zsh
 source "$DOTFILES"/snippet/aliasPhp.zsh
 source "$DOTFILES"/snippet/aliasGit.zsh
+source "$DOTFILES"/snippet/images.zsh
 
 # 系統
 alias es='zinit update --all --parallel 16 && exec $(echo $SHELL)'
