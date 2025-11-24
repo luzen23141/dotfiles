@@ -4,6 +4,13 @@
 
 # 格式化檔案大小
 _av1_format_size() {
+  # 強制禁用調試輸出
+  set +x
+  {
+    setopt localoptions 2>/dev/null
+    unsetopt xtrace verbose 2>/dev/null
+  } 2>/dev/null
+  
   local size=$1
   if command -v numfmt &> /dev/null; then
     numfmt --to=iec-i --suffix=B "$size" 2>/dev/null || echo "${size}B"
@@ -530,7 +537,7 @@ function toAv1Test() {
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "📖 使用說明"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "  toAv1Test <input_file> <start_time> <end_time> [-g grain]"
+    echo "  toAv1Test <input_file> <start_time> <end_time> [-s speed] [-g grain]"
     echo ""
     echo "📝 參數說明"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -539,6 +546,8 @@ function toAv1Test() {
     echo "              範例: 00:01:30, 90"
     echo "  end_time    - 結束時間（必填）"
     echo "              範例: 00:05:00, 300"
+    echo "  -s speed    - 播放速度倍率（可選，預設 1.0）"
+    echo "              範例: -s 1.0, -s 1.5, -s 2.0"
     echo "  -g grain    - Film grain 參數（可選，預設 0）"
     echo "              可指定為 0, 4, 8 進行多次測試"
     echo ""
@@ -554,7 +563,9 @@ function toAv1Test() {
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "  toAv1Test input.mp4 00:01:00 00:02:00"
     echo "  toAv1Test input.mp4 60 120"
+    echo "  toAv1Test input.mp4 00:01:00 00:02:00 -s 1.5"
     echo "  toAv1Test input.mp4 00:01:00 00:02:00 -g 15"
+    echo "  toAv1Test input.mp4 00:01:00 00:02:00 -s 1.5 -g 8"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
     return 1
@@ -575,9 +586,26 @@ function toAv1Test() {
 
   # 解析可選參數
   local grain="0"
+  local speed="1.0"
   
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      -s)
+        if [ -z "$2" ]; then
+          echo "❌ 錯誤：-s 需要指定速度倍率"
+          return 1
+        fi
+        if ! [[ "$2" =~ ^[0-9]+\.?[0-9]*$ ]]; then
+          echo "❌ 錯誤：速度倍率必須是正數，收到: $2"
+          return 1
+        fi
+        if (( $(echo "$2 < 0.5 || $2 > 100.0" | bc -l) )); then
+          echo "❌ 錯誤：速度倍率必須在 0.5-100.0 之間，收到: $2"
+          return 1
+        fi
+        speed="$2"
+        shift 2
+        ;;
       -g)
         if [ -z "$2" ]; then
           echo "❌ 錯誤：-g 需要指定 grain 值"
@@ -623,6 +651,7 @@ function toAv1Test() {
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo "📂 輸入檔案: $input_file"
   echo "⏱️ 時間範圍: $start_time → $end_time"
+  echo "⚡ 播放速度: ${speed}x"
   echo "🎥 Film Grain: $grain"
   echo "📊 測試組合: $total_combinations 個"
   echo "   • 原始裁切: 1 個 (作為品質基準)"
@@ -704,7 +733,7 @@ function toAv1Test() {
       echo ""
       
       # 構建命令
-      local cmd_args=("$input_file" -ss "$start_time" -to "$end_time" -c "$crf" -p "$preset" -g "$grain")
+      local cmd_args=("$input_file" -ss "$start_time" -to "$end_time" -s "$speed" -c "$crf" -p "$preset" -g "$grain")
       
       # 記錄測試開始時間
       local test_start
