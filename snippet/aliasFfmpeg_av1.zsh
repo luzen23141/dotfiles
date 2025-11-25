@@ -352,7 +352,7 @@ function toAv1() {
 
   # 計算目標位元率（AV1 通常比 H.265 更高效）
   local maxrate
-  maxrate=$((orig_bitrate / 2))
+  maxrate=$((orig_bitrate / 3 * 2))
 
   # 計算bufsize為maxrate的2倍
   local bufsize=$((maxrate * 2))
