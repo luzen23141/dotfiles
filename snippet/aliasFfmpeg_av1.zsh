@@ -358,7 +358,10 @@ function toAv1() {
   local bufsize=$((maxrate * 2))
 
   # 構建 svtav1-params
-  local svtav1_params="tune=${tune}:film-grain=${grain}"
+  local svtav1_params=""
+  if [ "$tune" != "0" ] || [ "$grain" != "0" ]; then
+    svtav1_params="tune=${tune}:film-grain=${grain}"
+  fi
 
   echo ""
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -393,15 +396,41 @@ function toAv1() {
   )
   [ -n "$start_time" ] && ffmpeg_cmd+=(-ss "$start_time")
   [ -n "$end_time" ] && ffmpeg_cmd+=(-to "$end_time")
+  
+  local video_filter_arg=""
+  local audio_filter_arg=""
+  if (( $(echo "$speed != 1.0" | bc -l) )); then
+    video_filter_arg="setpts=PTS/${speed}"
+    local remain="$speed"
+    local atempo_chain=""
+    while (( $(echo "$remain > 2.0" | bc -l) )); do
+      if [ -n "$atempo_chain" ]; then atempo_chain="$atempo_chain,atempo=2.0"; else atempo_chain="atempo=2.0"; fi
+      remain=$(echo "scale=6; $remain / 2.0" | bc -l)
+    done
+    while (( $(echo "$remain < 0.5" | bc -l) )); do
+      if [ -n "$atempo_chain" ]; then atempo_chain="$atempo_chain,atempo=0.5"; else atempo_chain="atempo=0.5"; fi
+      remain=$(echo "scale=6; $remain / 0.5" | bc -l)
+    done
+    if (( $(echo "$remain != 1.0" | bc -l) )); then
+      if [ -n "$atempo_chain" ]; then atempo_chain="$atempo_chain,atempo=$remain"; else atempo_chain="atempo=$remain"; fi
+    fi
+    audio_filter_arg="$atempo_chain"
+  fi
   ffmpeg_cmd+=(
     -i "$input_file"
+  )
+  [ -n "$video_filter_arg" ] && ffmpeg_cmd+=(-filter:v "$video_filter_arg")
+  [ -n "$audio_filter_arg" ] && ffmpeg_cmd+=(-filter:a "$audio_filter_arg")
+  ffmpeg_cmd+=(
     -map_metadata -1
     -map_chapters -1
     -c:v libsvtav1
     -crf "$crf"
     -preset "$preset"
     -pix_fmt yuv420p10le
-    -svtav1-params "$svtav1_params"
+  )
+  [ -n "$svtav1_params" ] && ffmpeg_cmd+=(-svtav1-params "$svtav1_params")
+  ffmpeg_cmd+=(
     -maxrate "$maxrate"
     -bufsize "$bufsize"
     -c:a aac
