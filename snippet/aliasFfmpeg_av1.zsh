@@ -4,6 +4,13 @@
 
 # 格式化檔案大小
 _av1_format_size() {
+  # 強制禁用調試輸出
+  set +x
+  {
+    setopt localoptions 2>/dev/null
+    unsetopt xtrace verbose 2>/dev/null
+  } 2>/dev/null
+  
   local size=$1
   if command -v numfmt &> /dev/null; then
     numfmt --to=iec-i --suffix=B "$size" 2>/dev/null || echo "${size}B"
@@ -345,13 +352,16 @@ function toAv1() {
 
   # 計算目標位元率（AV1 通常比 H.265 更高效）
   local maxrate
-  maxrate=$((orig_bitrate / 2))
+  maxrate=$((orig_bitrate / 3 * 2))
 
   # 計算bufsize為maxrate的2倍
   local bufsize=$((maxrate * 2))
 
   # 構建 svtav1-params
-  local svtav1_params="tune=${tune}:film-grain=${grain}"
+  local svtav1_params=""
+  if [ "$tune" != "0" ] || [ "$grain" != "0" ]; then
+    svtav1_params="tune=${tune}:film-grain=${grain}"
+  fi
 
   echo ""
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -386,15 +396,43 @@ function toAv1() {
   )
   [ -n "$start_time" ] && ffmpeg_cmd+=(-ss "$start_time")
   [ -n "$end_time" ] && ffmpeg_cmd+=(-to "$end_time")
+  
+  local video_filter_arg=""
+  local audio_filter_arg=""
+  if (( $(echo "$speed != 1.0" | bc -l) )); then
+    video_filter_arg="setpts=PTS/${speed}"
+    local remain="$speed"
+    local atempo_chain=""
+    while (( $(echo "$remain > 2.0" | bc -l) )); do
+      if [ -n "$atempo_chain" ]; then atempo_chain="$atempo_chain,atempo=2.0"; else atempo_chain="atempo=2.0"; fi
+      remain=$(echo "scale=6; $remain / 2.0" | bc -l)
+    done
+    while (( $(echo "$remain < 0.5" | bc -l) )); do
+      if [ -n "$atempo_chain" ]; then atempo_chain="$atempo_chain,atempo=0.5"; else atempo_chain="atempo=0.5"; fi
+      remain=$(echo "scale=6; $remain / 0.5" | bc -l)
+    done
+    if (( $(echo "$remain != 1.0" | bc -l) )); then
+      if [ -n "$atempo_chain" ]; then atempo_chain="$atempo_chain,atempo=$remain"; else atempo_chain="atempo=$remain"; fi
+    fi
+    audio_filter_arg="$atempo_chain"
+  fi
   ffmpeg_cmd+=(
     -i "$input_file"
+  )
+  [ -n "$video_filter_arg" ] && ffmpeg_cmd+=(-filter:v "$video_filter_arg")
+  [ -n "$audio_filter_arg" ] && ffmpeg_cmd+=(-filter:a "$audio_filter_arg")
+  ffmpeg_cmd+=(
     -map_metadata -1
     -map_chapters -1
     -c:v libsvtav1
     -crf "$crf"
     -preset "$preset"
     -pix_fmt yuv420p10le
-    -svtav1-params "$svtav1_params"
+    -g 60
+    -keyint_min 30
+  )
+  [ -n "$svtav1_params" ] && ffmpeg_cmd+=(-svtav1-params "$svtav1_params")
+  ffmpeg_cmd+=(
     -maxrate "$maxrate"
     -bufsize "$bufsize"
     -c:a aac
@@ -530,7 +568,7 @@ function toAv1Test() {
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "📖 使用說明"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "  toAv1Test <input_file> <start_time> <end_time> [-g grain]"
+    echo "  toAv1Test <input_file> <start_time> <end_time> [-s speed] [-g grain]"
     echo ""
     echo "📝 參數說明"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -539,6 +577,8 @@ function toAv1Test() {
     echo "              範例: 00:01:30, 90"
     echo "  end_time    - 結束時間（必填）"
     echo "              範例: 00:05:00, 300"
+    echo "  -s speed    - 播放速度倍率（可選，預設 1.0）"
+    echo "              範例: -s 1.0, -s 1.5, -s 2.0"
     echo "  -g grain    - Film grain 參數（可選，預設 0）"
     echo "              可指定為 0, 4, 8 進行多次測試"
     echo ""
@@ -554,7 +594,9 @@ function toAv1Test() {
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "  toAv1Test input.mp4 00:01:00 00:02:00"
     echo "  toAv1Test input.mp4 60 120"
+    echo "  toAv1Test input.mp4 00:01:00 00:02:00 -s 1.5"
     echo "  toAv1Test input.mp4 00:01:00 00:02:00 -g 15"
+    echo "  toAv1Test input.mp4 00:01:00 00:02:00 -s 1.5 -g 8"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
     return 1
@@ -575,9 +617,26 @@ function toAv1Test() {
 
   # 解析可選參數
   local grain="0"
+  local speed="1.0"
   
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      -s)
+        if [ -z "$2" ]; then
+          echo "❌ 錯誤：-s 需要指定速度倍率"
+          return 1
+        fi
+        if ! [[ "$2" =~ ^[0-9]+\.?[0-9]*$ ]]; then
+          echo "❌ 錯誤：速度倍率必須是正數，收到: $2"
+          return 1
+        fi
+        if (( $(echo "$2 < 0.5 || $2 > 100.0" | bc -l) )); then
+          echo "❌ 錯誤：速度倍率必須在 0.5-100.0 之間，收到: $2"
+          return 1
+        fi
+        speed="$2"
+        shift 2
+        ;;
       -g)
         if [ -z "$2" ]; then
           echo "❌ 錯誤：-g 需要指定 grain 值"
@@ -623,6 +682,7 @@ function toAv1Test() {
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo "📂 輸入檔案: $input_file"
   echo "⏱️ 時間範圍: $start_time → $end_time"
+  echo "⚡ 播放速度: ${speed}x"
   echo "🎥 Film Grain: $grain"
   echo "📊 測試組合: $total_combinations 個"
   echo "   • 原始裁切: 1 個 (作為品質基準)"
@@ -704,7 +764,7 @@ function toAv1Test() {
       echo ""
       
       # 構建命令
-      local cmd_args=("$input_file" -ss "$start_time" -to "$end_time" -c "$crf" -p "$preset" -g "$grain")
+      local cmd_args=("$input_file" -ss "$start_time" -to "$end_time" -s "$speed" -c "$crf" -p "$preset" -g "$grain")
       
       # 記錄測試開始時間
       local test_start
