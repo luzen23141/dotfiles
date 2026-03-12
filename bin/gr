@@ -10,7 +10,8 @@ if [ -f "$config_file" ]; then
 
   # 檢查是否找到 php= 指令
   if [ -n "$config_value" ]; then
-    eval "$config_value $@"
+    cmd_parts=("${(@z)config_value}")
+    "${cmd_parts[@]}" "$@"
   else
     echo "未找到 go_run_default= 指令，執行預設指令"
     go run . "$@"

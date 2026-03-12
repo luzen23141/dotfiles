@@ -1,36 +1,472 @@
-#! /bin/zsh
+#!/usr/bin/env zsh
 
-source "$HOME/.zshrc"
+# 最小必要環境：避免整包載入互動 shell 設定。
+export DOTFILES="${DOTFILES:-$HOME/dotfiles}"
+export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
+export PNPM_HOME="${PNPM_HOME:-$HOME/.data/pnpm}"
 
-function updateZinit() {
-  zinit update --all --parallel 16 &
-  pid=$!
-  cd "$DOTFILES" || (echo "Path Error" && exit)
-  pwd
-  brew update
-  brew upgrade
-  brew autoremove
-  brew cleanup --prune=all
-  brew doctor
+case ":$PATH:" in
+  *":$PNPM_HOME:"*) ;;
+  *) export PATH="$PNPM_HOME:$PATH" ;;
+esac
 
-  wait $pid
+if [[ -x /opt/homebrew/bin/brew ]]; then
+  eval "$(/opt/homebrew/bin/brew shellenv)"
+elif command -v brew >/dev/null 2>&1; then
+  eval "$(brew shellenv)"
+fi
+
+# 只在 zinit 尚未載入時補載，供 au 更新插件使用。
+if ! command -v zinit >/dev/null 2>&1; then
+  ZINIT_HOME="${XDG_CACHE_HOME}/zinit/zinit.git"
+  [[ -f "$ZINIT_HOME/zinit.zsh" ]] && source "$ZINIT_HOME/zinit.zsh"
+fi
+
+WARN_EXIT_CODE=10
+LOG_TAIL_LINES=12
+TMP_DIR=$(mktemp -d "/tmp/a-update.XXXXXX") || exit 1
+FINAL_EXIT_CODE=0
+SUMMARY_PRINTED=0
+INTERRUPTED=0
+TOTAL_STEPS=0
+COMPLETED_STEPS=0
+
+if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+  COLOR_RESET=$'\033[0m'
+  COLOR_BLUE=$'\033[34m'
+  COLOR_GREEN=$'\033[32m'
+  COLOR_YELLOW=$'\033[33m'
+  COLOR_RED=$'\033[31m'
+  COLOR_BOLD=$'\033[1m'
+else
+  COLOR_RESET=""
+  COLOR_BLUE=""
+  COLOR_GREEN=""
+  COLOR_YELLOW=""
+  COLOR_RED=""
+  COLOR_BOLD=""
+fi
+
+typeset -a STEP_ORDER BG_STEP_IDS BG_PIDS
+typeset -A STEP_LABELS STEP_STATUS STEP_DURATION STEP_MESSAGE STEP_LOG STEP_PID
+
+progress_prefix() {
+  if (( TOTAL_STEPS > 0 )); then
+    print -r -- "[$((COMPLETED_STEPS + 1))/$TOTAL_STEPS]"
+  else
+    print -r -- "[--/--]"
+  fi
+}
+
+status_badge() {
+  local step_status="$1"
+
+  case "$step_status" in
+    OK)
+      print -r -- "${COLOR_GREEN}[OK]${COLOR_RESET}"
+      ;;
+    WARN)
+      print -r -- "${COLOR_YELLOW}[WARN]${COLOR_RESET}"
+      ;;
+    FAIL)
+      print -r -- "${COLOR_RED}[FAIL]${COLOR_RESET}"
+      ;;
+    *)
+      print -r -- "[$step_status]"
+      ;;
+  esac
+}
+
+log_info() {
+  print -r -- "${COLOR_BLUE}[INFO]${COLOR_RESET} $1"
+}
+
+log_warn() {
+  print -r -- "${COLOR_YELLOW}[WARN]${COLOR_RESET} $1"
+}
+
+log_error() {
+  print -r -- "${COLOR_RED}[FAIL]${COLOR_RESET} $1"
+}
+
+format_duration() {
+  local seconds="$1"
+  print -r -- "${seconds}s"
+}
+
+# 初始化步驟狀態，供最後摘要統一輸出。
+register_step() {
+  local id="$1"
+  local label="$2"
+
+  STEP_ORDER+=("$id")
+  STEP_LABELS[$id]="$label"
+  STEP_STATUS[$id]="WARN"
+  STEP_DURATION[$id]="0s"
+  STEP_MESSAGE[$id]="未執行"
+  STEP_LOG[$id]="$TMP_DIR/${id}.log"
+}
+
+record_step() {
+  local id="$1"
+  local step_status="$2"
+  local duration="$3"
+  local message="$4"
+
+  STEP_STATUS[$id]="$step_status"
+  STEP_DURATION[$id]="$(format_duration "$duration")"
+  STEP_MESSAGE[$id]="$message"
+  COMPLETED_STEPS=$((COMPLETED_STEPS + 1))
+
+  if [[ "$step_status" == "FAIL" ]]; then
+    FINAL_EXIT_CODE=1
+  fi
+}
+
+print_log_tail() {
+  local log_file="$1"
+
+  [[ -s "$log_file" ]] || return 0
+
+  print -r -- "  最後 ${LOG_TAIL_LINES} 行："
+  while IFS= read -r line; do
+    print -r -- "    $line"
+  done < <(tail -n "$LOG_TAIL_LINES" -- "$log_file" 2>/dev/null)
+}
+
+print_step_result() {
+  local id="$1"
+  local badge
+
+  badge="$(status_badge "${STEP_STATUS[$id]}")"
+  print -r -- "$badge ${STEP_LABELS[$id]} (${STEP_DURATION[$id]}) - ${STEP_MESSAGE[$id]}"
+}
+
+step_warn() {
+  typeset -g STEP_NOTE="$1"
+  return $WARN_EXIT_CODE
+}
+
+require_cmd() {
+  local command_name="$1"
+  local display_name="${2:-$1}"
+
+  command -v "$command_name" >/dev/null 2>&1 || step_warn "略過：未安裝 $display_name"
+}
+
+skip_step() {
+  local id="$1"
+  local label="$2"
+  local reason="$3"
+
+  register_step "$id" "$label"
+  record_step "$id" "WARN" 0 "$reason"
+  print_step_result "$id"
+}
+
+# 前景步驟：立即執行，失敗時直接輸出關鍵錯誤片段。
+run_step() {
+  local id="$1"
+  local label="$2"
+  shift 2
+
+  register_step "$id" "$label"
+  log_info "$(progress_prefix) $label"
+
+  local log_file="${STEP_LOG[$id]}"
+  local started=$SECONDS
+  typeset -g STEP_NOTE=""
+
+  "$@" >"$log_file" 2>&1
+  local rc=$?
+  local duration=$((SECONDS - started))
+  local note="${STEP_NOTE}"
+
+  case "$rc" in
+    0)
+      record_step "$id" "OK" "$duration" "${note:-完成}"
+      ;;
+    $WARN_EXIT_CODE)
+      record_step "$id" "WARN" "$duration" "${note:-略過}"
+      ;;
+    *)
+      record_step "$id" "FAIL" "$duration" "${note:-失敗，請查看錯誤輸出}"
+      ;;
+  esac
+
+  print_step_result "$id"
+
+  if [[ "$rc" != 0 && "$rc" != "$WARN_EXIT_CODE" ]]; then
+    print_log_tail "$log_file"
+  fi
+
+  return "$rc"
+}
+
+# 背景步驟：先平行跑，最後再統一收斂結果。
+run_bg_step() {
+  local id="$1"
+  local label="$2"
+  shift 2
+
+  register_step "$id" "$label"
+  log_info "$(progress_prefix) $label（背景）"
+
+  local log_file="${STEP_LOG[$id]}"
+  local meta_prefix="$TMP_DIR/${id}.meta"
+
+  (
+    local started=$SECONDS
+    typeset -g STEP_NOTE=""
+
+    "$@" >"$log_file" 2>&1
+    local rc=$?
+    local duration=$((SECONDS - started))
+
+    print -r -- "$rc" > "${meta_prefix}.rc"
+    print -r -- "$duration" > "${meta_prefix}.duration"
+    print -r -- "${STEP_NOTE}" > "${meta_prefix}.note"
+    exit 0
+  ) &
+
+  BG_PIDS+=("$!")
+  BG_STEP_IDS+=("$id")
+  STEP_PID[$id]="$!"
+}
+
+collect_bg_steps() {
+  local id pid rc duration note meta_prefix wait_rc
+
+  for id in "${BG_STEP_IDS[@]}"; do
+    pid="${STEP_PID[$id]}"
+    meta_prefix="$TMP_DIR/${id}.meta"
+    wait "$pid" 2>/dev/null
+    wait_rc=$?
+
+    if [[ -f "${meta_prefix}.rc" ]]; then
+      rc=$(<"${meta_prefix}.rc")
+      duration=$(<"${meta_prefix}.duration")
+      note=$(<"${meta_prefix}.note")
+    else
+      rc="$wait_rc"
+      duration=0
+      note="背景任務未完成"
+    fi
+
+    case "$rc" in
+      0)
+        record_step "$id" "OK" "$duration" "${note:-完成}"
+        ;;
+      $WARN_EXIT_CODE)
+        record_step "$id" "WARN" "$duration" "${note:-略過}"
+        ;;
+      *)
+        if [[ "$INTERRUPTED" -eq 1 && ! -f "${meta_prefix}.rc" ]]; then
+          record_step "$id" "WARN" "$duration" "已中斷"
+        else
+          record_step "$id" "FAIL" "$duration" "${note:-失敗，請查看錯誤輸出}"
+        fi
+        ;;
+    esac
+
+    print_step_result "$id"
+
+    if [[ "${STEP_STATUS[$id]}" == "FAIL" ]]; then
+      print_log_tail "${STEP_LOG[$id]}"
+    fi
+  done
+}
+
+# 最後統一列出每個步驟狀態，避免中途噴太多雜訊。
+print_summary() {
+  [[ "$SUMMARY_PRINTED" -eq 1 ]] && return 0
+  SUMMARY_PRINTED=1
+
+  local id ok_count=0 warn_count=0 fail_count=0
+
+  print -r -- ""
+  print -r -- "${COLOR_BOLD}更新摘要${COLOR_RESET}"
+
+  for id in "${STEP_ORDER[@]}"; do
+    print_step_result "$id"
+
+    case "${STEP_STATUS[$id]}" in
+      OK) ok_count=$((ok_count + 1)) ;;
+      WARN) warn_count=$((warn_count + 1)) ;;
+      FAIL) fail_count=$((fail_count + 1)) ;;
+    esac
+  done
+
+  print -r -- ""
+  print -r -- "${COLOR_GREEN}OK${COLOR_RESET}: $ok_count  ${COLOR_YELLOW}WARN${COLOR_RESET}: $warn_count  ${COLOR_RED}FAIL${COLOR_RESET}: $fail_count"
+}
+
+cleanup_bg_jobs() {
+  local pid
+
+  for pid in "${BG_PIDS[@]}"; do
+    kill "$pid" 2>/dev/null || true
+  done
+
+  for pid in "${BG_PIDS[@]}"; do
+    wait "$pid" 2>/dev/null || true
+  done
+}
+
+# 收到中斷時，盡量回收背景工作並保留目前摘要。
+handle_interrupt() {
+  INTERRUPTED=1
+  log_warn "收到中斷，正在停止背景任務"
+  cleanup_bg_jobs
+  collect_bg_steps
+  print_summary
+  exit 130
+}
+
+cleanup_temp_dir() {
+  [[ -d "$TMP_DIR" ]] && rm -rf "$TMP_DIR"
+}
+
+trap 'handle_interrupt' INT TERM
+trap 'cleanup_temp_dir' EXIT
+
+brew_step() {
+  require_cmd brew
+  brew "$@"
+}
+
+step_brew_update() {
+  brew_step update
+}
+
+step_brew_upgrade() {
+  brew_step upgrade
+}
+
+step_brew_autoremove() {
+  brew_step autoremove
+}
+
+step_brew_cleanup() {
+  brew_step cleanup --prune=all
+}
+
+step_brew_doctor() {
+  brew_step doctor
+}
+
+step_brew_upgrade_cask() {
+  brew_step upgrade --cask --greedy
+}
+
+step_zinit_update() {
+  require_cmd zinit
+  zinit update --all --parallel 16
+}
+
+step_zinit_self_update() {
+  require_cmd zinit
   zinit self-update
 }
 
-function updateCask() {
-  brew update
-  brew upgrade --cask --greedy
-  mas upgrade
+step_update_uv_tools() {
+  require_cmd uv
+
+  uv tool upgrade --all || return $?
+
+  if command -v brew >/dev/null 2>&1 && brew list uv >/dev/null 2>&1; then
+    typeset -g STEP_NOTE="tools 完成；略過 self update（Homebrew 管理）"
+    return 0
+  fi
+
+  if uv self update; then
+    typeset -g STEP_NOTE="tools 與本體完成"
+    return 0
+  fi
+
+  typeset -g STEP_NOTE="tools 完成；略過 self update（安裝方式不支援或更新失敗）"
+  return $WARN_EXIT_CODE
 }
 
-if [[ "$1" == "cask" ]]; then # 如果帶入 cask 參數，則執行這些指令
-  echo "更新cask"
-  updateCask
-elif [[ -z "$1" ]]; then  # 如果不帶任何參數，則執行這些指令
-  echo "更新zinit 及 brew安裝的指令"
-  updateZinit
-else
-  # 如果帶入錯誤參數，則返回錯誤
-  echo "錯誤：未知的參數 '$1'"
-  exit 1
-fi
+step_update_pnpm_global_tools() {
+  require_cmd pnpm
+  pnpm up -g
+}
+
+step_update_go_global_tools() {
+  require_cmd gup
+  gup update
+}
+
+# au：brew 主鏈前景執行，其餘可獨立的更新背景並行。
+run_main_update() {
+  TOTAL_STEPS=9
+
+  run_bg_step "zinit_update" "zinit update" step_zinit_update
+  run_bg_step "uv_tools" "uv tools" step_update_uv_tools
+  run_bg_step "pnpm_globals" "pnpm 全域套件" step_update_pnpm_global_tools
+  run_bg_step "go_globals" "Go 全域工具" step_update_go_global_tools
+
+  if run_step "brew_update" "brew update" step_brew_update; then
+    if run_step "brew_upgrade" "brew upgrade" step_brew_upgrade; then
+      run_step "brew_autoremove" "brew autoremove" step_brew_autoremove
+      run_step "brew_cleanup" "brew cleanup" step_brew_cleanup
+      run_step "brew_doctor" "brew doctor" step_brew_doctor
+    else
+      skip_step "brew_autoremove" "brew autoremove" "略過：brew upgrade 失敗"
+      skip_step "brew_cleanup" "brew cleanup" "略過：brew upgrade 失敗"
+      skip_step "brew_doctor" "brew doctor" "略過：brew upgrade 失敗"
+    fi
+  else
+    skip_step "brew_upgrade" "brew upgrade" "略過：brew update 失敗"
+    skip_step "brew_autoremove" "brew autoremove" "略過：brew update 失敗"
+    skip_step "brew_cleanup" "brew cleanup" "略過：brew update 失敗"
+    skip_step "brew_doctor" "brew doctor" "略過：brew update 失敗"
+  fi
+
+  collect_bg_steps
+
+  if [[ "${STEP_STATUS[zinit_update]}" == "OK" ]]; then
+    run_step "zinit_self_update" "zinit self-update" step_zinit_self_update
+  else
+    skip_step "zinit_self_update" "zinit self-update" "略過：zinit update 未成功"
+  fi
+}
+
+# auc：只保留 cask 更新鏈，維持 brew update -> cask upgrade 的順序。
+run_cask_update() {
+  TOTAL_STEPS=2
+
+  if run_step "brew_update" "brew update" step_brew_update; then
+    run_step "brew_cask_upgrade" "brew upgrade --cask --greedy" step_brew_upgrade_cask
+  else
+    skip_step "brew_cask_upgrade" "brew upgrade --cask --greedy" "略過：brew update 失敗"
+  fi
+}
+
+main() {
+  cd "$DOTFILES" || {
+    log_error "無法切換到 DOTFILES：$DOTFILES"
+    exit 1
+  }
+
+  case "$1" in
+    "")
+      log_info "開始執行 au"
+      run_main_update
+      ;;
+    cask)
+      log_info "開始執行 auc"
+      run_cask_update
+      ;;
+    *)
+      log_error "未知的參數 '$1'"
+      exit 1
+      ;;
+  esac
+
+  print_summary
+  exit "$FINAL_EXIT_CODE"
+}
+
+main "$@"

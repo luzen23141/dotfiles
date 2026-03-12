@@ -51,8 +51,9 @@ function gma() {
 
     config_value=$(grep "merge_mine_check=" "$config_file" | cut -d'=' -f2-)
     if [ -n "$config_value" ]; then
+      local cmd_parts=("${(@z)config_value}")
       echo "執行指令 $config_value"
-      eval "$config_value"
+      "${cmd_parts[@]}"
     fi
 
   else
@@ -64,6 +65,43 @@ function gma() {
 #function gitpr() {
 #  git open origin master --suffix compare/master..."$(git rev-parse --abbrev-ref HEAD)"
 #}
+
+# 快速建立或更新 tmp commit
+alias gct="git_commit_tmp"
+function git_commit_tmp() {
+  # 獲取當前用戶的 git email
+  current_user=$(git config user.email)
+  
+  # 獲取最新的 commit message 和 author email
+  last_commit_msg=$(git log -1 --pretty=%s 2>/dev/null)
+  last_commit_author=$(git log -1 --pretty=%ae 2>/dev/null)
+  
+  # 先 add 所有改動
+  git add .
+  
+  # 檢查是否有改動需要 commit
+  if git diff --cached --quiet; then
+    echo "沒有任何改動需要 commit"
+    return 0
+  fi
+  
+  # 如果最新的 commit 是 "tmp"、作者是本人且尚未推上遠端，才用 amend
+  current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+  remote_has_tmp=0
+  if git rev-parse --verify "origin/$current_branch" >/dev/null 2>&1; then
+    if git merge-base --is-ancestor HEAD "origin/$current_branch"; then
+      remote_has_tmp=1
+    fi
+  fi
+
+  if [[ "$last_commit_msg" == "tmp" ]] && [[ "$last_commit_author" == "$current_user" ]] && [[ $remote_has_tmp -eq 0 ]]; then
+    echo "更新現有的 tmp commit (amend)"
+    git commit --amend --no-edit
+  else
+    echo "建立新的 tmp commit"
+    git commit -m "tmp"
+  fi
+}
 
 # rebase master
 # function grm() {

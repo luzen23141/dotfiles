@@ -1,22 +1,28 @@
-## php多版本
-alias php73='"$HOMEBREW_PREFIX"/opt/php@7.3/bin/php'
-alias pecl73='"$HOMEBREW_PREFIX"/opt/php@7.3/bin/pecl'
-alias composer73='"$HOMEBREW_PREFIX"/opt/php@7.3/bin/php "$HOMEBREW_PREFIX"/bin/composer'
-alias php74='"$HOMEBREW_PREFIX"/opt/php@7.4/bin/php'
-alias pecl74='"$HOMEBREW_PREFIX"/opt/php@7.4/bin/pecl'
-alias composer74='"$HOMEBREW_PREFIX"/opt/php@7.4/bin/php "$HOMEBREW_PREFIX"/bin/composer'
-alias php80='"$HOMEBREW_PREFIX"/opt/php@8.0/bin/php'
-alias pecl80='"$HOMEBREW_PREFIX"/opt/php@8.0/bin/pecl'
-alias composer80='"$HOMEBREW_PREFIX"/opt/php@8.0/bin/php "$HOMEBREW_PREFIX"/bin/composer'
-alias php81='"$HOMEBREW_PREFIX"/opt/php@8.1/bin/php'
-alias pecl81='"$HOMEBREW_PREFIX"/opt/php@8.1/bin/pecl'
-alias composer81='"$HOMEBREW_PREFIX"/opt/php@8.1/bin/php "$HOMEBREW_PREFIX"/bin/composer'
-alias php83='"$HOMEBREW_PREFIX"/opt/php@8.3/bin/php'
-alias pecl83='"$HOMEBREW_PREFIX"/opt/php@8.3/bin/pecl'
-alias composer83='"$HOMEBREW_PREFIX"/opt/php@8.3/bin/php "$HOMEBREW_PREFIX"/bin/composer'
-alias hy83='"$HOMEBREW_PREFIX"/opt/php@8.3/bin/php bin/hyperf.php'
-# hyperf框架多版本
-alias hy80='"$HOMEBREW_PREFIX"/opt/php@8.0/bin/php bin/hyperf.php'
-alias hy73='"$HOMEBREW_PREFIX"/opt/php@7.3/bin/php bin/hyperf.php'
-alias hy74='"$HOMEBREW_PREFIX"/opt/php@7.4/bin/php bin/hyperf.php'
+## php多版本管理
+# 動態生成 PHP 版本別名的函數
+_setup_php_version_aliases() {
+  local versions=("7.3" "7.4" "8.0" "8.1" "8.3")
+  
+  for version in "${versions[@]}"; do
+    local short_ver="${version//./}"  # 移除點號，例如 7.3 -> 73
+    local php_path="$HOMEBREW_PREFIX/opt/php@$version/bin"
+    
+    # 檢查該版本是否已安裝
+    if [[ -d "$php_path" ]]; then
+      # PHP 別名
+      alias "php${short_ver}=${php_path}/php"
+      # PECL 別名
+      alias "pecl${short_ver}=${php_path}/pecl"
+      # Composer 別名
+      alias "composer${short_ver}=${php_path}/php \$HOMEBREW_PREFIX/bin/composer"
+      # Hyperf 框架別名
+      alias "hy${short_ver}=${php_path}/php bin/hyperf.php"
+    fi
+  done
+}
+
+# 執行別名設置
+_setup_php_version_aliases
+
+# Hyperf 框架預設別名
 alias hy='php bin/hyperf.php'

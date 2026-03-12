@@ -28,7 +28,11 @@ if ! command -v brew > /dev/null 2>&1; then
 fi
 
 # Removes .zshrc from $HOME (if it exists) and symlinks the .zshrc file from the .dotfiles
-rm -rf "$HOME"/.zshrc
+if [ -e "$HOME/.zshrc" ] || [ -L "$HOME/.zshrc" ]; then
+  backup_zshrc="$HOME/.zshrc.backup.$(date +%Y%m%d_%H%M%S)"
+  mv "$HOME/.zshrc" "$backup_zshrc"
+  echo "已備份既有 .zshrc 至 $backup_zshrc"
+fi
 ln -s "$DOTFILES"/.zshrc "$HOME"/.zshrc
 
 # Update Homebrew recipes

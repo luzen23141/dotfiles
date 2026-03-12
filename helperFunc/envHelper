@@ -4,10 +4,10 @@
 ENV_FILE=".aConfig"
 
 # Define key-value map
-declare -A shorter_key_map
+typeset -A shorter_key_map
 shorter_key_map=(
-  [m]="main_branch"
-  [a]="mine_branch"
+  m "main_branch"
+  a "mine_branch"
 )
 
 set_current_branch=("a" "m")
@@ -19,17 +19,28 @@ ensure_env_exists() {
   fi
 }
 
+# Function to escape regex characters for grep/sed patterns
+escape_regex() {
+  printf '%s' "$1" | sed 's/[][\\.^$*+?(){}|/]/\\&/g'
+}
+
+# Function to escape replacement string for sed
+escape_sed_replacement() {
+  printf '%s' "$1" | sed 's/[\\&]/\\&/g'
+}
+
 # Function to fetch a key's value or return default
 get_env_value() {
   ensure_env_exists
   local key=${shorter_key_map[$1]:-$1}
   local defaultValue=$2
-  local value=$(grep -m 1 "^$key=" $ENV_FILE | cut -d '=' -f2-)
+  local escaped_key=$(escape_regex "$key")
+  local value=$(grep -m 1 "^$escaped_key=" "$ENV_FILE" | cut -d '=' -f2-)
 
   if [[ -n $value ]]; then
     echo "$value"
   else
-    echo $defaultValue
+    echo "$defaultValue"
   fi
 }
 
@@ -38,13 +49,15 @@ get_env_contains() {
   ensure_env_exists
   local searchKey=$1
   local fullKey=${shorter_key_map[$searchKey]}
+  local escaped_search_key=$(escape_regex "$searchKey")
 
   # Search for the abbreviation
-  grep "^$searchKey=" $ENV_FILE
+  grep "^$escaped_search_key=" "$ENV_FILE"
 
   # If a full key name exists, search for it as well
   if [[ -n $fullKey ]]; then
-    grep "^$fullKey=" $ENV_FILE
+    local escaped_full_key=$(escape_regex "$fullKey")
+    grep "^$escaped_full_key=" "$ENV_FILE"
   fi
 }
 
@@ -53,21 +66,23 @@ set_env_value() {
   ensure_env_exists
   local key=${shorter_key_map[$1]:-$1}
   local value=$2
+  local escaped_key=$(escape_regex "$key")
+  local escaped_value=$(escape_sed_replacement "$value")
 
   # Ensure there's a newline at the end of the file
-  tail -n1 $ENV_FILE | read -r _ || echo >> $ENV_FILE
+  tail -n1 "$ENV_FILE" | read -r _ || echo >> "$ENV_FILE"
 
-  if grep -q "^$key=" $ENV_FILE; then
-    sed -i '' "s/^$key=.*/$key=$value/" $ENV_FILE
+  if grep -q "^$escaped_key=" "$ENV_FILE"; then
+    sed -i '' "s/^$escaped_key=.*/$key=$escaped_value/" "$ENV_FILE"
   else
-    echo "$key=$value" >> $ENV_FILE
+    echo "$key=$value" >> "$ENV_FILE"
   fi
 }
 
 # Function to list all key-value pairs in ENV_FILE
 list_env_values() {
   ensure_env_exists
-  cat $ENV_FILE
+  cat "$ENV_FILE"
 }
 
 # Usage Examples:

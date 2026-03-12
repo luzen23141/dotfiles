@@ -45,7 +45,7 @@ function main() {
 
   app_name=$(basename $app_path .app)
 
-  processes=($(pgrep -afil "$app_name" | grep -v  $(basename "$0"))) | grep -v "a.py uninstall"
+  processes=($(pgrep -afil "$app_name" | grep -v "$(basename "$0")"))
   if [ ${#processes[@]} -gt 0 ]; then
     printf "%s\n" "${processes[@]}"
     printf "$red%s$normal" "Kill running processes (y or n)? "
@@ -54,7 +54,8 @@ function main() {
       printf "%s\n" "Killing running processes…"
       sleep 1
       for process in "${processes[@]}"; do
-        echo $process | awk '{print $app_path}' | xargs sudo kill 2>&1 | grep -v "No such process"
+        pid=$(printf '%s\n' "$process" | awk '{print $1}')
+        [ -n "$pid" ] && sudo kill "$pid" 2>&1 | grep -v "No such process"
       done
     fi
   fi

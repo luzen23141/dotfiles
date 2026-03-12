@@ -7,13 +7,14 @@ if [ "$#" -gt 0 ]; then
   # 移除第一個變數
   shift 1
 
-  # $* 是字串格式的所有變數
-  # $@ 是陣列格式的所有變數
-  # 串出要執行的指令
-  command="a-${subCommand} $*"
+  command_path="a-${subCommand}"
 
-  # 執行指令
-  eval "$command"
+  if command -v "$command_path" >/dev/null 2>&1; then
+    "$command_path" "$@"
+  else
+    echo "找不到指令: $command_path"
+    exit 1
+  fi
 else
   echo "a backup"
 fi

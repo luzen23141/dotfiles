@@ -2,6 +2,8 @@
 
 # dotFiles档案预计放的位子
 DOTFILES_TMP="$HOME"/dotfiles
+EXPECTED_HTTPS_REMOTE="https://github.com/luzen23141/dotfiles.git"
+EXPECTED_SSH_REMOTE="git@github.com:luzen23141/dotfiles.git"
 
 # 如果沒有git 代表應該是沒有安裝X xcode
 if ! command -v git > /dev/null 2>&1; then
@@ -11,7 +13,18 @@ if ! command -v git > /dev/null 2>&1; then
 fi
 
 if [ ! -d "$DOTFILES_TMP" ]; then
-  git clone https://github.com/luzen23141/dotfiles.git "$DOTFILES_TMP"
+  git clone "$EXPECTED_HTTPS_REMOTE" "$DOTFILES_TMP"
+else
+  if [ ! -d "$DOTFILES_TMP/.git" ]; then
+    echo "錯誤: $DOTFILES_TMP 已存在，但不是 git repository"
+    exit 1
+  fi
+
+  current_remote=$(git -C "$DOTFILES_TMP" remote get-url origin 2>/dev/null || true)
+  if [ "$current_remote" != "$EXPECTED_HTTPS_REMOTE" ] && [ "$current_remote" != "$EXPECTED_SSH_REMOTE" ]; then
+    echo "錯誤: $DOTFILES_TMP 已存在，但不是預期的 dotfiles repository"
+    exit 1
+  fi
 fi
 
 zsh "$DOTFILES_TMP"/fresh.sh

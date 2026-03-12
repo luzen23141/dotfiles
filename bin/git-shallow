@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 # 获取当前路径作为原始仓库路径
 original_repo_path=$(pwd)
 echo "原始仓库路径: $original_repo_path"
@@ -20,6 +22,9 @@ echo "浅克隆深度: $depth"
 new_repo_path="$original_repo_path"
 echo "新仓库路径: $new_repo_path"
 
+temp_repo_path="${original_repo_path}_temp"
+backup_temp_repo_path="${original_repo_path}_temp_backup_$(date +%Y%m%d_%H%M%S)"
+
 # 备份原始仓库
 echo "正在备份原始仓库..."
 cp -R "$original_repo_path" "$backup_repo_path"
@@ -39,15 +44,19 @@ echo "当前分支或标签: $current_branch_or_tag"
 
 # 由于新路径与原始路径相同，我们需要先移动原始仓库
 echo "正在移动原始仓库..."
-mv "$original_repo_path" "${original_repo_path}_temp"
+mv "$original_repo_path" "$temp_repo_path"
+
+restore_original_repo() {
+    if [ ! -d "$new_repo_path/.git" ] && [ -d "$temp_repo_path" ]; then
+        echo "克隆失败，正在还原原始仓库..."
+        mv "$temp_repo_path" "$original_repo_path"
+    fi
+}
+trap restore_original_repo EXIT
 
 # 克隆指定深度的新仓库
 echo "正在克隆新仓库..."
-git clone --depth $depth --no-single-branch $remote_url "$new_repo_path"
-
-# 删除临时移动的原始仓库
-echo "正在删除临时仓库..."
-rm -rf "${original_repo_path}_temp"
+git clone --depth "$depth" --no-single-branch "$remote_url" "$new_repo_path"
 
 # 进入新仓库目录
 echo "进入新仓库目录..."
@@ -55,4 +64,9 @@ cd "$new_repo_path" || exit
 
 # 切换到原始仓库的当前分支或标签
 echo "正在切换到原始仓库的当前分支或标签..."
-git checkout $current_branch_or_tag
+git checkout "$current_branch_or_tag"
+
+# 保存临时移动的原始仓库，不直接删除
+echo "保留原始仓库备份至: $backup_temp_repo_path"
+mv "$temp_repo_path" "$backup_temp_repo_path"
+trap - EXIT

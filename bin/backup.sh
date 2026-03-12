@@ -105,29 +105,32 @@ handle_symlink() {
     if [ "$mode" == "backup" ]; then
         # === 備份模式：不需要處理 ===
         echo "   [跳過] 軟連結無需備份: $link_path -> $target_path"
-        
+
     elif [ "$mode" == "restore" ]; then
         # === 還原模式：建立軟連結 ===
         echo "   [還原/Symlink] 建立 $link_path -> $target_path"
-        
+
         # 檢查目標是否存在
         if [ ! -e "$target_path" ]; then
             echo "   [警告] 目標不存在: $target_path"
         fi
-        
-        # 如果軟連結位置已存在，先刪除
+
+        # 如果軟連結位置已存在，先備份
         if [ -e "$link_path" ] || [ -L "$link_path" ]; then
-            echo "   [提示] 刪除現有項目: $link_path"
-            rm -rf "$link_path"
+            local trash_dir="$HOME/.ai_trash"
+            local backup_path="$trash_dir/$(basename "$link_path")_$(date +%Y%m%d_%H%M%S)"
+            mkdir -p "$trash_dir"
+            echo "   [提示] 備份現有項目到: $backup_path"
+            mv "$link_path" "$backup_path"
         fi
-        
+
         # 確保父目錄存在
         local link_dir
         link_dir=$(dirname "$link_path")
         if [ ! -d "$link_dir" ]; then
             mkdir -p "$link_dir"
         fi
-        
+
         # 建立軟連結
         ln -s "$target_path" "$link_path"
     fi
