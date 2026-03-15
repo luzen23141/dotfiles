@@ -1,0 +1,252 @@
+#!/bin/bash
+# usage — 顯示 Claude Code + OpenAI Codex 剩餘額度
+# 資料來源: OpenCode auth.json (anthropic + openai OAuth tokens)
+# 用法: usage [-w|--watch [秒數]]  預設 60 秒自動刷新
+set -f
+
+# ── Watch 模式 ──────────────────────────────────────────
+WATCH=false; INTERVAL=60
+case "$1" in
+  -w|--watch)
+    WATCH=true
+    if [[ -n "$2" ]]; then
+      if [[ "$2" =~ ^[0-9]+$ && "$2" -ge 60 ]]; then
+        INTERVAL=$2
+      else
+        printf "\033[31m✗ 最低刷新間隔為 60 秒（避免 API 頻率限制）\033[0m\n"
+        exit 1
+      fi
+    fi
+    ;;
+esac
+
+# ── ANSI 色碼 ───────────────────────────────────────────
+RESET='\033[0m'; BOLD='\033[1m'; DIM='\033[2m'
+WHITE='\033[38;2;220;220;220m'
+GREEN='\033[32m'; YELLOW='\033[33m'; RED='\033[31m'
+ORANGE='\033[38;2;255;176;85m'; CYAN='\033[36m'
+
+BAR_WIDTH=20
+
+# ── 通用工具 ────────────────────────────────────────────
+
+# 依使用百分比回傳對應色碼
+color_for_pct() {
+  local pct=$1
+  if   (( pct >= 90 )); then printf "$RED"
+  elif (( pct >= 70 )); then printf "$YELLOW"
+  elif (( pct >= 50 )); then printf "$ORANGE"
+  else printf "$GREEN"
+  fi
+}
+
+# 繪製進度條: build_bar <used%> [width]
+build_bar() {
+  local pct=$1 width=${2:-$BAR_WIDTH}
+  (( pct < 0 ))   && pct=0
+  (( pct > 100 )) && pct=100
+  local filled=$(( pct * width / 100 ))
+  local empty=$(( width - filled ))
+  local bar_color; bar_color=$(color_for_pct "$pct")
+  local out="${bar_color}"
+  for (( i=0; i<filled; i++ )); do out+="█"; done
+  out+="${DIM}"
+  for (( i=0; i<empty; i++ ));  do out+="░"; done
+  out+="${RESET}"
+  printf "%b" "$out"
+}
+
+# 秒數 → 人類可讀倒計時 (e.g. "3d 5h", "2h30m", "45m")
+fmt_countdown() {
+  local s=$1
+  (( s <= 0 )) && { printf "now"; return; }
+  local d=$(( s/86400 )) h=$(( s%86400/3600 )) m=$(( s%3600/60 ))
+  if   (( d > 0 )); then printf "%dd %dh" "$d" "$h"
+  elif (( h > 0 )); then printf "%dh%dm" "$h" "$m"
+  else printf "%dm" "$m"
+  fi
+}
+
+# epoch → "倒計時 (MM/DD HH:MM)" 格式的 reset 字串
+fmt_reset() {
+  local epoch=$1
+  [[ -z "$epoch" || "$epoch" == "0" ]] && return
+  local now; now=$(date +%s)
+  local diff=$(( epoch - now )); (( diff < 0 )) && diff=0
+  printf "${DIM}resets${RESET} ${WHITE}%s${RESET} ${DIM}(%s)${RESET}" \
+    "$(fmt_countdown "$diff")" \
+    "$(date -j -r "$epoch" +"%m/%d %H:%M" 2>/dev/null)"
+}
+
+# ISO 8601 時間字串 → epoch 秒數
+iso_to_epoch() {
+  local s="${1%%.*}"; s="${s%%Z}"; s="${s%%+*}"; s="${s%%-[0-9][0-9]:[0-9][0-9]}"
+  [[ -z "$s" || "$1" == "null" ]] && { echo 0; return; }
+  local flag=""; [[ "$1" == *Z* || "$1" == *+00:00* ]] && flag="TZ=UTC"
+  local e; e=$(env $flag date -j -f "%Y-%m-%dT%H:%M:%S" "$s" +%s 2>/dev/null)
+  echo "${e:-0}"
+}
+
+# 窗口秒數 → 標籤名 (e.g. "5-hour", "7-day")
+fmt_window() {
+  local s=$1; (( s >= 86400 )) && printf "%d-day" $(( s/86400 )) || printf "%d-hour" $(( s/3600 ))
+}
+
+# 印一行額度列: print_row <label> <used%> <reset_str>
+print_row() {
+  local label="$1" pct="$2" reset_str="$3"
+  local clr; clr=$(color_for_pct "$pct")
+  printf "  ${BOLD}%-8s${RESET} %s ${clr}%3d%% used${RESET}  ${GREEN}%3d%% left${RESET}\n" \
+    "$label" "$(build_bar "$pct")" "$pct" "$(( 100 - pct ))"
+  [[ -n "$reset_str" ]] && printf "             %b\n" "$reset_str"
+}
+
+# 從 JSON 讀取 Claude 單一窗口並印出: print_claude_window <json> <jq_key> <label>
+print_claude_window() {
+  local data="$1" key="$2" label="$3"
+  local pct; pct=$(echo "$data" | jq -r ".${key}.utilization // 0" | awk '{printf "%.0f",$1}')
+  local epoch; epoch=$(iso_to_epoch "$(echo "$data" | jq -r ".${key}.resets_at // empty")")
+  print_row "$label" "$pct" "$(fmt_reset "$epoch")"
+}
+
+# 從 JSON 讀取 Codex 單一窗口並印出: print_codex_window <json> <jq_path>
+print_codex_window() {
+  local data="$1" path="$2"
+  local pct; pct=$(echo "$data" | jq -r "${path}.used_percent // 0")
+  local wsec; wsec=$(echo "$data" | jq -r "${path}.limit_window_seconds // 0")
+  local rsec; rsec=$(echo "$data" | jq -r "${path}.reset_after_seconds // 0")
+  local epoch=$(( $(date +%s) + rsec ))
+  print_row "$(fmt_window "$wsec")" "$pct" "$(fmt_reset "$epoch")"
+}
+
+# 印區塊標題: print_header <title> [account_info]
+print_header() {
+  printf "\n${BOLD}${CYAN}  %s${RESET}  %b\n\n" "$1" "$2"
+}
+
+# ── 尋找 OpenCode auth.json ────────────────────────────
+AUTH_FILE=""
+for p in \
+  "$HOME/.data/opencode/auth.json" \
+  "$HOME/.local/share/opencode/auth.json" \
+  "${XDG_DATA_HOME:-$HOME/.local/share}/opencode/auth.json" \
+  "$HOME/.config/opencode/auth.json"; do
+  [[ -f "$p" ]] && { AUTH_FILE="$p"; break; }
+done
+
+if [[ -z "$AUTH_FILE" ]]; then
+  printf "${RED}✗ 找不到 OpenCode auth.json${RESET}\n"
+  printf "${DIM}已搜尋: ~/.data/opencode, ~/.local/share/opencode, ~/.config/opencode${RESET}\n"
+  exit 1
+fi
+
+# ── 主要邏輯（fetch + 輸出）────────────────────────────
+run_once() {
+  # 一次讀取所有 token
+  eval "$(python3 -c "
+import json, shlex
+d = json.load(open('$AUTH_FILE'))
+ant = d.get('anthropic', {})
+oai = d.get('openai', {})
+print(f'CLAUDE_TOKEN={shlex.quote(ant.get(\"access\", \"\"))}')
+print(f'OAI_TOKEN={shlex.quote(oai.get(\"access\", \"\"))}')
+print(f'OAI_ACCT={shlex.quote(oai.get(\"accountId\", \"\"))}')
+" 2>/dev/null)"
+
+  # 並行 API 請求
+  local claude_tmp=$(mktemp) codex_tmp=$(mktemp) claude_prof=$(mktemp)
+  local pid_c="" pid_o=""
+
+  if [[ -n "$CLAUDE_TOKEN" ]]; then
+    (
+      H=(-H "Authorization: Bearer $CLAUDE_TOKEN" -H "anthropic-beta: oauth-2025-04-20")
+      curl -s --max-time 10 -H "Accept: application/json" "${H[@]}" \
+        "https://api.anthropic.com/api/oauth/usage" > "$claude_tmp" &
+      curl -s --max-time 10 "${H[@]}" \
+        "https://api.anthropic.com/api/oauth/profile" > "$claude_prof" &
+      wait
+    ) &
+    pid_c=$!
+  fi
+
+  if [[ -n "$OAI_TOKEN" ]]; then
+    (
+      H=(-H "Authorization: Bearer $OAI_TOKEN" -H "User-Agent: OpenCode-Status/1.0")
+      [[ -n "$OAI_ACCT" ]] && H+=(-H "ChatGPT-Account-Id: $OAI_ACCT")
+      curl -s --max-time 10 "${H[@]}" \
+        "https://chatgpt.com/backend-api/wham/usage" > "$codex_tmp"
+    ) &
+    pid_o=$!
+  fi
+
+  [[ -n "$pid_c" ]] && wait "$pid_c"
+  [[ -n "$pid_o" ]] && wait "$pid_o"
+
+  # ── Claude Code 輸出 ─────────────────────────────────
+  local claude_data=""; [[ -s "$claude_tmp" ]] && claude_data=$(<"$claude_tmp")
+
+  if [[ -n "$claude_data" ]] && echo "$claude_data" | jq -e '.five_hour' >/dev/null 2>&1; then
+    local acct=""
+    if [[ -s "$claude_prof" ]] && jq -e '.account' "$claude_prof" >/dev/null 2>&1; then
+      local email; email=$(jq -r '.account.email // empty' "$claude_prof")
+      local org; org=$(jq -r '.organization.organization_type // empty' "$claude_prof")
+      local plan="pro"
+      [[ "$org" == *max* ]] && plan="max"
+      [[ "$org" == *free* ]] && plan="free"
+      [[ -n "$email" ]] && acct="${DIM}${email} (${plan})${RESET}"
+    fi
+
+    print_header "Claude Code" "$acct"
+    print_claude_window "$claude_data" "five_hour"        "5-hour"
+    printf "\n"
+    print_claude_window "$claude_data" "seven_day"        "weekly"
+    printf "\n"
+    print_claude_window "$claude_data" "seven_day_sonnet" "sonnet"
+  else
+    print_header "Claude Code" "${RED}✗ 無法取得${RESET}"
+  fi
+
+  # ── OpenAI Codex 輸出 ────────────────────────────────
+  local codex_data=""; [[ -s "$codex_tmp" ]] && codex_data=$(<"$codex_tmp")
+
+  if [[ -n "$codex_data" ]] && echo "$codex_data" | jq -e '.rate_limit' >/dev/null 2>&1; then
+    local email; email=$(echo "$codex_data" | jq -r '.email // "unknown"')
+    local plan; plan=$(echo "$codex_data" | jq -r '.plan_type // "unknown"')
+
+    print_header "OpenAI Codex" "${DIM}${email} (${plan})${RESET}"
+    print_codex_window "$codex_data" ".rate_limit.primary_window"
+
+    if echo "$codex_data" | jq -e '.rate_limit.secondary_window' >/dev/null 2>&1; then
+      printf "\n"
+      print_codex_window "$codex_data" ".rate_limit.secondary_window"
+    fi
+
+    if [[ "$(echo "$codex_data" | jq -r '.rate_limit.limit_reached')" == "true" ]]; then
+      printf "\n  ${RED}${BOLD}⚠ 已達到速率限制！${RESET}\n"
+    fi
+  else
+    print_header "OpenAI Codex" "${RED}✗ 無法取得${RESET}"
+  fi
+
+  # 時間戳
+  printf "\n  ${DIM}updated %s${RESET}\n" "$(date +"%H:%M:%S")"
+
+  # 清理 tmp
+  rm -f "$claude_tmp" "$codex_tmp" "$claude_prof"
+}
+
+# ── 執行 ────────────────────────────────────────────────
+if $WATCH; then
+  trap 'printf "\033[?25h\n"; exit 0' INT  # 退出時恢復游標
+  while true; do
+    clear
+    run_once
+    # 原地倒數計時
+    for (( remaining=INTERVAL; remaining>0; remaining-- )); do
+      printf "\r  ${DIM}next in ${WHITE}%ds${RESET}${DIM} · Ctrl+C to exit${RESET}  " "$remaining"
+      sleep 1
+    done
+  done
+else
+  run_once
+fi

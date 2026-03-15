@@ -5,7 +5,7 @@ updateAConfig() {
     local branchName=$2
     local configPath=".aConfig"
 
-    # 检查并更新配置，或在文件末尾添加新配置
+    # 檢查並更新配置，或在檔案末尾新增配置
     awk -v entry="$entry=" -v branchName="$branchName" '
     BEGIN {updated = 0}
     $0 ~ "^" entry {if (!updated) {print entry branchName; updated=1} next}
@@ -14,10 +14,10 @@ updateAConfig() {
     ' "$configPath" > "$configPath.tmp" && mv "$configPath.tmp" "$configPath"
 
     if [[ $? -eq 0 ]]; then
-        echo "Configuration updated successfully."
+        echo "配置更新成功。"
         return 0
     else
-        echo "Failed to update configuration."
+        echo "配置更新失敗。"
         return 1
     fi
 }
@@ -28,13 +28,8 @@ getAConfig(){
 
   value=$(grep -v '^#' .aConfig | grep "$entry=" | cut -d'=' -f2-)
 
-  # if empty string return default or = ""
+  # 若為空字串則回傳預設值
   if [[ -z "$value" ]]; then
-    echo "$default"
-    return
-  fi
-
-  if [[ $value == "" ]]; then
     echo "$default"
     return
   fi

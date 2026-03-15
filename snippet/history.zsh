@@ -1,25 +1,24 @@
-## History wrapper
+# 歷史記錄包裝函數
 function history {
   if [[ $# -eq 0 ]]; then
-    # if no arguments provided, show full history starting from 1
+    # 無參數：從第 1 筆開始顯示完整歷史
     builtin fc -t '$HIST_STAMPS' -l 1
   else
-    # otherwise, run `fc -l` with a custom format
+    # 有參數：以自訂格式執行 fc -l
     builtin fc -t '$HIST_STAMPS' -l "$@"
   fi
 }
 
-#alias history="omz_history -t '$HIST_STAMPS'"
-## History file configuration
+# 歷史記錄檔案設定
 HISTSIZE=100000
-SAVEHIST=20000
+SAVEHIST=100000
 
-# History command configuration
+# 歷史記錄行為設定
 # https://zsh.sourceforge.io/Doc/Release/Options.html#History
-setopt extended_history       # record timestamp of command in HISTFILE
-setopt hist_expire_dups_first # delete duplicates first when HISTFILE size exceeds HISTSIZE
-# setopt hist_ignore_dups       # ignore duplicated commands history list
+setopt extended_history       # 記錄指令的執行時間戳
+setopt hist_expire_dups_first # HISTFILE 超過 HISTSIZE 時優先刪除重複項
+# setopt hist_ignore_dups       # 已由 HIST_IGNORE_ALL_DUPS 取代（只忽略相鄰重複 vs 全部重複）
 setopt HIST_IGNORE_ALL_DUPS   # 如果重複的話，刪除舊的指令
-setopt hist_ignore_space      # ignore commands that start with space
-setopt hist_verify            # show command with history expansion to user before running it
-setopt share_history          # share command history data
+setopt hist_ignore_space      # 忽略以空白開頭的指令
+setopt hist_verify            # 展開歷史後先顯示指令讓使用者確認再執行
+setopt share_history          # 跨 shell session 共享歷史記錄

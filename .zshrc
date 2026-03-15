@@ -56,7 +56,19 @@ export NPM_CONFIG_PREFIX="$XDG_DATA_HOME/npm"
 # 僅集中整理既有項目，不新增 path
 export PNPM_HOME="$XDG_DATA_HOME/pnpm"
 typeset -U path PATH
-export PATH="$PNPM_HOME:$HOME/.antigravity/antigravity/bin:/opt/homebrew/opt/curl/bin:$DOTFILES/bin:$HOME/.orbstack/bin:/opt/bin:$GOBIN:$COMPOSER_HOME/vendor/bin:$NPM_CONFIG_PREFIX/bin:$PATH"
+path=(
+  "$PNPM_HOME"
+  "$HOME/.antigravity/antigravity/bin"
+  "/opt/homebrew/opt/curl/bin"
+  "$DOTFILES/bin"
+  "$HOME/.orbstack/bin"
+  "/opt/bin"
+  "$GOBIN"
+  "$COMPOSER_HOME/vendor/bin"
+  "$NPM_CONFIG_PREFIX/bin"
+  $path
+)
+export PATH
 
 # 設定：Shell 基本行為
 export LC_CTYPE="en_US.UTF-8"
@@ -142,8 +154,10 @@ zinit wait'1' lucid depth"1" light-mode for \
   OMZP::safe-paste \
   OMZP::colored-man-pages \
   OMZP::sudo
-#   OMZL::git.zsh claude建議移除，先留存觀察下
+#   OMZL::git.zsh  # 移除原因：與自訂 git alias 衝突；觀察中，確認無副作用後可刪除此行
 
 # zinit 設定：較少使用工具（延遲載入）
 zinit wait'2' lucid depth"1" light-mode for \
   paulirish/git-open
+
+# export OPENCODE_DISABLE_CLAUDE_CODE=1  # 停用 opencode 內建的 claude code 整合（衝突時啟用）

@@ -3,11 +3,10 @@
 source "$DOTFILES"/helperFunc/envHelper
 
 if [[ $# -eq 0 ]]; then
-  # No parameters passed, list all key-value pairs
+  # 無參數：列出所有 key-value
   list_env_values
 else
-  # Parameter passed, display value for the given key
-  # Assuming the second parameter is a default value if the key is not found
+  # 有參數：顯示指定 key 的值，第二個參數為找不到時的預設值
   get_env_contains "$1" "${2:-}"
 fi
 

@@ -19,28 +19,28 @@ elif  [[ $# -gt 0 && ($1 == "cache" || $1 == "c") ]]; then
   size=$(du -sh .git | awk '{print $1}')
   printf "清理前 .git 目錄大小為：%s\n\n" "$size"
 
-  #  清理未跟踪的文件（Untracked Files）:
-  # -f force -d 递回到全部目录 -x 不管gitignore全删
+  # 清理未追蹤的檔案（Untracked Files）
+  # -f force -d 遞迴所有目錄 -x 忽略 .gitignore 全部刪除
   git clean -fd
   git submodule foreach git clean -fd
 
-  # 清理引用日志（Reflog）
+  # 清理引用日誌（Reflog）
   git reflog expire --expire=now --all
   git submodule foreach git reflog expire --expire=now --all
 
-  # 压缩和优化仓库（Garbage Collection）
-  # 这个命令会清理不再需要的文件，并优化仓库的性能。--prune=now 选项告诉 Git 立即删除那些老旧的对象。
-  # --aggressive 更积极的优化，但是跑比较慢，每隔几百次commit执行一次就好
+  # 壓縮並優化倉庫（Garbage Collection）
+  # 清理不再需要的物件並優化效能；--prune=now 立即刪除舊物件
+  # --aggressive 更積極的優化，速度較慢，建議每幾百次 commit 執行一次
   git gc --prune=now --aggressive
   git submodule foreach git gc --prune=now --aggressive
 
-  # 清理暂存区（Staging Area）:
-  # 如果您想要取消暂存所有已经暂存的文件（撤销 git add），可以使用：
+  # 清理暫存區（Staging Area）
+  # 取消所有已暫存的檔案（撤銷 git add）
   git reset
   git submodule foreach git reset
 
-  #  清理合并冲突的日志:
-  #  在解决合并冲突后，可以使用以下命令来清理合并相关的备份和日志：
+  # 清理合併衝突的殘留檔案
+  # 解決合併衝突後，清理合併相關的備份與日誌
   git clean -f
   git submodule foreach git clean -f
   size=$(du -sh .git | awk '{print $1}')

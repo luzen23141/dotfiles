@@ -75,11 +75,6 @@ if [ $# -eq 0 ]; then
   exec claude
 fi
 
-[ $# -ge 1 ] || {
-  usage
-  exit 1
-}
-
 dry_run=0
 if [ "${1:-}" = "--dry-run" ] || [ "${1:-}" = "-n" ]; then
   dry_run=1
@@ -114,8 +109,8 @@ fi
 
 if [ "$is_native" -eq 1 ]; then
   if [ "$dry_run" -eq 1 ]; then
-    printf 'dry-run: native claude mode\n'
-    printf 'dry-run: command\n'
+    printf '試執行：原生 claude 模式\n'
+    printf '試執行：指令\n'
     printf '  claude %s\n' "$(quote_args "$@")"
     exit 0
   fi
@@ -247,10 +242,10 @@ fi
 claude_args+=("$@")
 
 if [ "$dry_run" -eq 1 ]; then
-  printf 'dry-run: profile=%s\n' "$profile_name"
-  printf 'dry-run: model=%s\n' "$selected_model"
-  printf 'dry-run: prompt_file=%s\n' "${prompt_file:-<none>}"
-  printf 'dry-run: env\n'
+  printf '試執行：profile=%s\n' "$profile_name"
+  printf '試執行：model=%s\n' "$selected_model"
+  printf '試執行：prompt_file=%s\n' "${prompt_file:-<none>}"
+  printf '試執行：環境變數\n'
   printf '  ANTHROPIC_AUTH_TOKEN=%s\n' '<redacted>'
   printf '  ANTHROPIC_BASE_URL=%s\n' "$base_url"
   if [ -n "$default_opus_model" ]; then
@@ -265,7 +260,7 @@ if [ "$dry_run" -eq 1 ]; then
   if [ -n "$subagent_model" ]; then
     printf '  CLAUDE_CODE_SUBAGENT_MODEL=%s\n' "$subagent_model"
   fi
-  printf 'dry-run: command\n'
+  printf '試執行：指令\n'
   printf '  env ANTHROPIC_AUTH_TOKEN=%s ANTHROPIC_BASE_URL=%s' "$(printf '%q' '<redacted>')" "$(printf '%q' "$base_url")"
   if [ -n "$default_opus_model" ]; then
     printf ' ANTHROPIC_DEFAULT_OPUS_MODEL=%s' "$(printf '%q' "$default_opus_model")"

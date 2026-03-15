@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# dotFiles档案预计放的位子
+# dotFiles 檔案預計放的位置
 DOTFILES_TMP="$HOME"/dotfiles
 EXPECTED_HTTPS_REMOTE="https://github.com/luzen23141/dotfiles.git"
 EXPECTED_SSH_REMOTE="git@github.com:luzen23141/dotfiles.git"
 
-# 如果沒有git 代表應該是沒有安裝X xcode
+# 如果沒有 git，代表尚未安裝 Xcode
 if ! command -v git > /dev/null 2>&1; then
   xcode-select --install
   echo "安裝mac xcode完成後，再重新執行此腳本"

@@ -1,9 +1,9 @@
 #!/bin/zsh
 
-# Configuration: Specify your .env file name here
+# 設定：指定 .env 檔案名稱
 ENV_FILE=".aConfig"
 
-# Define key-value map
+# 定義縮寫對應表
 typeset -A shorter_key_map
 shorter_key_map=(
   m "main_branch"
@@ -12,24 +12,24 @@ shorter_key_map=(
 
 set_current_branch=("a" "m")
 
-# Function to ensure ENV_FILE exists
+# 確保 ENV_FILE 存在
 ensure_env_exists() {
   if [[ ! -f $ENV_FILE ]]; then
     touch $ENV_FILE
   fi
 }
 
-# Function to escape regex characters for grep/sed patterns
+# 跳脫 grep/sed 的正規表達式特殊字元
 escape_regex() {
   printf '%s' "$1" | sed 's/[][\\.^$*+?(){}|/]/\\&/g'
 }
 
-# Function to escape replacement string for sed
+# 跳脫 sed 替換字串的特殊字元
 escape_sed_replacement() {
   printf '%s' "$1" | sed 's/[\\&]/\\&/g'
 }
 
-# Function to fetch a key's value or return default
+# 取得指定 key 的值，找不到時回傳預設值
 get_env_value() {
   ensure_env_exists
   local key=${shorter_key_map[$1]:-$1}
@@ -51,17 +51,17 @@ get_env_contains() {
   local fullKey=${shorter_key_map[$searchKey]}
   local escaped_search_key=$(escape_regex "$searchKey")
 
-  # Search for the abbreviation
+  # 搜尋縮寫
   grep "^$escaped_search_key=" "$ENV_FILE"
 
-  # If a full key name exists, search for it as well
+  # 若有對應完整鍵名，一併搜尋
   if [[ -n $fullKey ]]; then
     local escaped_full_key=$(escape_regex "$fullKey")
     grep "^$escaped_full_key=" "$ENV_FILE"
   fi
 }
 
-# Function to set a key's value
+# 設定指定 key 的值
 set_env_value() {
   ensure_env_exists
   local key=${shorter_key_map[$1]:-$1}
@@ -69,7 +69,7 @@ set_env_value() {
   local escaped_key=$(escape_regex "$key")
   local escaped_value=$(escape_sed_replacement "$value")
 
-  # Ensure there's a newline at the end of the file
+  # 確保檔案末尾有換行
   tail -n1 "$ENV_FILE" | read -r _ || echo >> "$ENV_FILE"
 
   if grep -q "^$escaped_key=" "$ENV_FILE"; then
@@ -79,13 +79,13 @@ set_env_value() {
   fi
 }
 
-# Function to list all key-value pairs in ENV_FILE
+# 列出 ENV_FILE 中所有 key-value
 list_env_values() {
   ensure_env_exists
   cat "$ENV_FILE"
 }
 
-# Usage Examples:
+# 使用範例：
 # get_env_value aaa "default_value"
 # set_env_value aaa "new_value"
 # list_env_values

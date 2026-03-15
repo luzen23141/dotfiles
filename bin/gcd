@@ -7,7 +7,7 @@ if [ -f "$config_file" ]; then
   # 讀取 .aConfig 檔案中的內容
   config_value=$(grep "dev_branch=" "$config_file" | cut -d'=' -f2-)
 
-  # 檢查是否找到 php= 指令
+  # 檢查是否找到 dev_branch= 指令
   if [ -n "$config_value" ]; then
     git checkout "$config_value" "$@"
   else

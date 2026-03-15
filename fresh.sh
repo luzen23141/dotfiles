@@ -1,18 +1,14 @@
 #!/bin/sh
 
-echo "Setting up your Mac..."
+echo "正在設定你的 Mac..."
 
 export DOTFILES="$HOME/dotfiles"
 
-cd "$(dirname "$0")" || (echo "Path Error" && exit)
+cd "$(dirname "$0")" || { echo "Path Error"; exit 1; }
 
 . "$DOTFILES"/dotfileFunction.sh
 
-# submodule安裝
-#git submodule init
-#git submodule update
-
-# Check for Homebrew and install if we don't have it
+# 檢查 Homebrew 是否已安裝，若無則自動安裝
 if ! command -v brew > /dev/null 2>&1; then
   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
   statusInstallBrew=$?
@@ -27,7 +23,7 @@ if ! command -v brew > /dev/null 2>&1; then
   eval "$(/opt/homebrew/bin/brew shellenv)"
 fi
 
-# Removes .zshrc from $HOME (if it exists) and symlinks the .zshrc file from the .dotfiles
+# 若 $HOME/.zshrc 已存在則先備份，再建立軟連結指向 dotfiles 中的 .zshrc
 if [ -e "$HOME/.zshrc" ] || [ -L "$HOME/.zshrc" ]; then
   backup_zshrc="$HOME/.zshrc.backup.$(date +%Y%m%d_%H%M%S)"
   mv "$HOME/.zshrc" "$backup_zshrc"
@@ -35,38 +31,16 @@ if [ -e "$HOME/.zshrc" ] || [ -L "$HOME/.zshrc" ]; then
 fi
 ln -s "$DOTFILES"/.zshrc "$HOME"/.zshrc
 
-# Update Homebrew recipes
+# 更新 Homebrew 套件清單
 brew update
 
-# Install all our dependencies with bundle (See Brewfile)
+# 透過 bundle 安裝所有相依套件（詳見 Brewfile）
 brew tap homebrew/bundle
 brew install mas
 brew bundle --file "$DOTFILES"/Brewfile
 
-# Set default MySQL root password and auth type
+# 設定 MySQL root 預設密碼與驗證方式
 #mysql -u root -e "ALTER USER root@localhost IDENTIFIED WITH mysql_native_password BY 'password'; FLUSH PRIVILEGES;"
-
-# Install PHP extensions with PECL
-#pecl install imagick redis swoole
-
-# Install global Composer packages
-#/usr/local/bin/composer global require laravel/installer laravel/valet beyondcode/expose spatie/global-ray spatie/visit
-
-# Install Laravel Valet
-#$HOME/.composer/vendor/bin/valet install
-
-# Install Global Ray
-#$HOME/.composer/vendor/bin/global-ray install
-
-# Create a Sites directory
-#mkdir $HOME/Sites
-
-# Create sites subdirectories
-#mkdir $HOME/Sites/blade-ui-kit
-#mkdir $HOME/Sites/laravel
-
-# Clone Github repositories
-#$DOTFILES/clone.sh
 
 # 建立軟連結
 info '  Installing dotfiles'
@@ -76,9 +50,9 @@ do
   link_file "$src" "$dst"
 done
 
-# Specify the preferences directory
+# 指定 iTerm2 偏好設定目錄
 defaults write com.googlecode.iterm2 PrefsCustomFolder -string "~/dotfiles/appConfig/iterm2"
 
-# Tell iTerm2 to use the custom preferences in the directory
+# 讓 iTerm2 從指定目錄載入偏好設定
 defaults write com.googlecode.iterm2 LoadPrefsFromCustomFolder -bool true
 

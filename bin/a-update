@@ -10,10 +10,23 @@ case ":$PATH:" in
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 
+# 用絕對路徑取代 eval "$(brew shellenv)"，只需要能呼叫 brew 即可。
+BREW_BIN=""
 if [[ -x /opt/homebrew/bin/brew ]]; then
-  eval "$(/opt/homebrew/bin/brew shellenv)"
-elif command -v brew >/dev/null 2>&1; then
-  eval "$(brew shellenv)"
+  BREW_BIN=/opt/homebrew/bin/brew
+elif [[ -x /usr/local/bin/brew ]]; then
+  BREW_BIN=/usr/local/bin/brew
+else
+  BREW_BIN=$(command -v brew 2>/dev/null)
+fi
+
+# brew 需要 PATH 包含自身 prefix，否則部分子命令找不到依賴。
+if [[ -n "$BREW_BIN" ]]; then
+  BREW_PREFIX="$("$BREW_BIN" --prefix 2>/dev/null)"
+  case ":$PATH:" in
+    *":${BREW_PREFIX}/bin:"*) ;;
+    *) export PATH="${BREW_PREFIX}/bin:${BREW_PREFIX}/sbin:$PATH" ;;
+  esac
 fi
 
 # 只在 zinit 尚未載入時補載，供 au 更新插件使用。
@@ -22,14 +35,16 @@ if ! command -v zinit >/dev/null 2>&1; then
   [[ -f "$ZINIT_HOME/zinit.zsh" ]] && source "$ZINIT_HOME/zinit.zsh"
 fi
 
-WARN_EXIT_CODE=10
+# ── 常數與狀態 ────────────────────────────────────────────────
 LOG_TAIL_LINES=12
-TMP_DIR=$(mktemp -d "/tmp/a-update.XXXXXX") || exit 1
+TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/a-update.XXXXXX") || exit 1
 FINAL_EXIT_CODE=0
 SUMMARY_PRINTED=0
 INTERRUPTED=0
 TOTAL_STEPS=0
 COMPLETED_STEPS=0
+CURRENT_STEP_ID=""
+CURRENT_STEP_STARTED=0
 
 if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
   COLOR_RESET=$'\033[0m'
@@ -48,7 +63,9 @@ else
 fi
 
 typeset -a STEP_ORDER BG_STEP_IDS BG_PIDS
-typeset -A STEP_LABELS STEP_STATUS STEP_DURATION STEP_MESSAGE STEP_LOG STEP_PID
+typeset -A STEP_LABELS STEP_STATUS STEP_DURATION STEP_MESSAGE STEP_LOG STEP_PID STEP_WARN_FLAG
+
+# ── 輔助函式 ──────────────────────────────────────────────────
 
 progress_prefix() {
   if (( TOTAL_STEPS > 0 )); then
@@ -62,36 +79,24 @@ status_badge() {
   local step_status="$1"
 
   case "$step_status" in
-    OK)
-      print -r -- "${COLOR_GREEN}[OK]${COLOR_RESET}"
-      ;;
-    WARN)
-      print -r -- "${COLOR_YELLOW}[WARN]${COLOR_RESET}"
-      ;;
-    FAIL)
-      print -r -- "${COLOR_RED}[FAIL]${COLOR_RESET}"
-      ;;
-    *)
-      print -r -- "[$step_status]"
-      ;;
+    OK)   print -r -- "${COLOR_GREEN}[OK]${COLOR_RESET}" ;;
+    WARN) print -r -- "${COLOR_YELLOW}[WARN]${COLOR_RESET}" ;;
+    FAIL) print -r -- "${COLOR_RED}[FAIL]${COLOR_RESET}" ;;
+    *)    print -r -- "[$step_status]" ;;
   esac
 }
 
-log_info() {
-  print -r -- "${COLOR_BLUE}[INFO]${COLOR_RESET} $1"
-}
-
-log_warn() {
-  print -r -- "${COLOR_YELLOW}[WARN]${COLOR_RESET} $1"
-}
-
-log_error() {
-  print -r -- "${COLOR_RED}[FAIL]${COLOR_RESET} $1"
-}
+log_info()  { print -r -- "${COLOR_BLUE}[INFO]${COLOR_RESET} $1"; }
+log_warn()  { print -r -- "${COLOR_YELLOW}[WARN]${COLOR_RESET} $1"; }
+log_error() { print -r -- "${COLOR_RED}[FAIL]${COLOR_RESET} $1"; }
 
 format_duration() {
   local seconds="$1"
-  print -r -- "${seconds}s"
+  if (( seconds >= 60 )); then
+    print -r -- "$((seconds / 60))m $((seconds % 60))s"
+  else
+    print -r -- "${seconds}s"
+  fi
 }
 
 # 初始化步驟狀態，供最後摘要統一輸出。
@@ -142,9 +147,11 @@ print_step_result() {
   print -r -- "$badge ${STEP_LABELS[$id]} (${STEP_DURATION[$id]}) - ${STEP_MESSAGE[$id]}"
 }
 
+# 用獨立狀態欄位標記 warn，不再依賴 magic exit code。
 step_warn() {
   typeset -g STEP_NOTE="$1"
-  return $WARN_EXIT_CODE
+  typeset -g STEP_IS_WARN=1
+  return 1
 }
 
 require_cmd() {
@@ -164,6 +171,19 @@ skip_step() {
   print_step_result "$id"
 }
 
+# 批次 skip 多個步驟，減少 cascade 重複。
+# 用法：skip_many "原因" "id1:label1" "id2:label2" ...
+skip_many() {
+  local reason="$1"
+  shift
+  local spec
+  for spec in "$@"; do
+    skip_step "${spec%%:*}" "${spec#*:}" "$reason"
+  done
+}
+
+# ── 步驟執行引擎 ─────────────────────────────────────────────
+
 # 前景步驟：立即執行，失敗時直接輸出關鍵錯誤片段。
 run_step() {
   local id="$1"
@@ -176,27 +196,29 @@ run_step() {
   local log_file="${STEP_LOG[$id]}"
   local started=$SECONDS
   typeset -g STEP_NOTE=""
+  typeset -g STEP_IS_WARN=0
+  CURRENT_STEP_ID="$id"
+  CURRENT_STEP_STARTED=$started
 
   "$@" >"$log_file" 2>&1
   local rc=$?
   local duration=$((SECONDS - started))
   local note="${STEP_NOTE}"
+  local is_warn="${STEP_IS_WARN}"
 
-  case "$rc" in
-    0)
-      record_step "$id" "OK" "$duration" "${note:-完成}"
-      ;;
-    $WARN_EXIT_CODE)
-      record_step "$id" "WARN" "$duration" "${note:-略過}"
-      ;;
-    *)
-      record_step "$id" "FAIL" "$duration" "${note:-失敗，請查看錯誤輸出}"
-      ;;
-  esac
+  CURRENT_STEP_ID=""
+
+  if [[ "$rc" -eq 0 ]]; then
+    record_step "$id" "OK" "$duration" "${note:-完成}"
+  elif [[ "$is_warn" -eq 1 ]]; then
+    record_step "$id" "WARN" "$duration" "${note:-略過}"
+  else
+    record_step "$id" "FAIL" "$duration" "${note:-失敗，請查看錯誤輸出}"
+  fi
 
   print_step_result "$id"
 
-  if [[ "$rc" != 0 && "$rc" != "$WARN_EXIT_CODE" ]]; then
+  if [[ "$rc" != 0 && "$is_warn" != 1 ]]; then
     print_log_tail "$log_file"
   fi
 
@@ -204,6 +226,8 @@ run_step() {
 }
 
 # 背景步驟：先平行跑，最後再統一收斂結果。
+# metadata 使用單一檔案 + mv 原子替換，避免中斷時讀到不完整資料。
+# subshell 內 trap 轉發 signal 給 child，確保中斷時真正停掉子程序。
 run_bg_step() {
   local id="$1"
   local label="$2"
@@ -213,20 +237,31 @@ run_bg_step() {
   log_info "$(progress_prefix) $label（背景）"
 
   local log_file="${STEP_LOG[$id]}"
-  local meta_prefix="$TMP_DIR/${id}.meta"
+  local meta_file="$TMP_DIR/${id}.meta"
 
   (
+    local child_pid
+    trap 'kill "$child_pid" 2>/dev/null; wait "$child_pid" 2>/dev/null' INT TERM
+
     local started=$SECONDS
     typeset -g STEP_NOTE=""
+    typeset -g STEP_IS_WARN=0
 
-    "$@" >"$log_file" 2>&1
+    "$@" >"$log_file" 2>&1 &
+    child_pid=$!
+    wait "$child_pid"
     local rc=$?
     local duration=$((SECONDS - started))
 
-    print -r -- "$rc" > "${meta_prefix}.rc"
-    print -r -- "$duration" > "${meta_prefix}.duration"
-    print -r -- "${STEP_NOTE}" > "${meta_prefix}.note"
-    exit 0
+    # 原子寫入：先寫 tmp 再 mv，確保 collector 讀到的一定是完整資料。
+    {
+      print -r -- "$rc"
+      print -r -- "$duration"
+      print -r -- "${STEP_IS_WARN}"
+      print -r -- "${STEP_NOTE}"
+    } > "${meta_file}.tmp" && mv -f "${meta_file}.tmp" "$meta_file"
+
+    exit "$rc"
   ) &
 
   BG_PIDS+=("$!")
@@ -235,39 +270,41 @@ run_bg_step() {
 }
 
 collect_bg_steps() {
-  local id pid rc duration note meta_prefix wait_rc
+  local id pid rc duration is_warn note meta_file wait_rc
 
   for id in "${BG_STEP_IDS[@]}"; do
     pid="${STEP_PID[$id]}"
-    meta_prefix="$TMP_DIR/${id}.meta"
+    meta_file="$TMP_DIR/${id}.meta"
     wait "$pid" 2>/dev/null
     wait_rc=$?
 
-    if [[ -f "${meta_prefix}.rc" ]]; then
-      rc=$(<"${meta_prefix}.rc")
-      duration=$(<"${meta_prefix}.duration")
-      note=$(<"${meta_prefix}.note")
+    if [[ -f "$meta_file" ]]; then
+      # 讀取原子寫入的單一 metadata 檔（4 行：rc, duration, is_warn, note）
+      {
+        IFS= read -r rc
+        IFS= read -r duration
+        IFS= read -r is_warn
+        IFS= read -r note
+      } < "$meta_file"
     else
+      # metadata 不存在 = 任務未正常完成
       rc="$wait_rc"
       duration=0
-      note="背景任務未完成"
+      is_warn=0
+      note=""
     fi
 
-    case "$rc" in
-      0)
-        record_step "$id" "OK" "$duration" "${note:-完成}"
-        ;;
-      $WARN_EXIT_CODE)
-        record_step "$id" "WARN" "$duration" "${note:-略過}"
-        ;;
-      *)
-        if [[ "$INTERRUPTED" -eq 1 && ! -f "${meta_prefix}.rc" ]]; then
-          record_step "$id" "WARN" "$duration" "已中斷"
-        else
-          record_step "$id" "FAIL" "$duration" "${note:-失敗，請查看錯誤輸出}"
-        fi
-        ;;
-    esac
+    if [[ "$rc" -eq 0 ]]; then
+      record_step "$id" "OK" "$duration" "${note:-完成}"
+    elif [[ "$is_warn" -eq 1 ]]; then
+      record_step "$id" "WARN" "$duration" "${note:-略過}"
+    else
+      if [[ "$INTERRUPTED" -eq 1 && ! -f "$meta_file" ]]; then
+        record_step "$id" "WARN" "$duration" "已中斷"
+      else
+        record_step "$id" "FAIL" "$duration" "${note:-失敗，請查看錯誤輸出}"
+      fi
+    fi
 
     print_step_result "$id"
 
@@ -276,6 +313,8 @@ collect_bg_steps() {
     fi
   done
 }
+
+# ── 摘要與清理 ────────────────────────────────────────────────
 
 # 最後統一列出每個步驟狀態，避免中途噴太多雜訊。
 print_summary() {
@@ -317,6 +356,12 @@ cleanup_bg_jobs() {
 handle_interrupt() {
   INTERRUPTED=1
   log_warn "收到中斷，正在停止背景任務"
+
+  # 若有前景步驟正在跑，先標記為已中斷。
+  if [[ -n "$CURRENT_STEP_ID" && "${STEP_MESSAGE[$CURRENT_STEP_ID]}" == "未執行" ]]; then
+    record_step "$CURRENT_STEP_ID" "WARN" "$((SECONDS - CURRENT_STEP_STARTED))" "已中斷"
+  fi
+
   cleanup_bg_jobs
   collect_bg_steps
   print_summary
@@ -330,33 +375,137 @@ cleanup_temp_dir() {
 trap 'handle_interrupt' INT TERM
 trap 'cleanup_temp_dir' EXIT
 
+# ── 更新後清理 ────────────────────────────────────────────────
+
+# au 完成後清除 brew shellenv 快取與 compdump，讓下次 shell 啟動重建。
+# auc 只做 cask 更新，不需要清除這些快取。
+post_update_cleanup() {
+  local mode="$1"
+
+  case "$mode" in
+    full)
+      rm -f "${XDG_CACHE_HOME:-$HOME/.cache}/brew_shellenv.zsh" \
+            "${ZINIT[ZCOMPDUMP_PATH]}" 2>/dev/null
+      ;;
+    cask)
+      # cask 模式不需要額外清理
+      ;;
+  esac
+}
+
+# ── 各步驟實作 ────────────────────────────────────────────────
+
 brew_step() {
-  require_cmd brew
-  brew "$@"
+  [[ -n "$BREW_BIN" ]] || step_warn "略過：未安裝 Homebrew"
+  "$BREW_BIN" "$@"
 }
 
-step_brew_update() {
-  brew_step update
+step_brew_update()       { brew_step update; }
+step_brew_upgrade()      { brew_step upgrade; }
+step_brew_autoremove()   { brew_step autoremove; }
+step_brew_cleanup()      { brew_step cleanup --prune=all; }
+step_brew_doctor()       { brew_step doctor; }
+step_brew_upgrade_cask() { brew_step upgrade --cask --greedy; }
+
+# 通用：印出更新清單，items 為已整理好的多行字串
+print_updated_list() {
+  local label="$1"
+  local items="$2"
+
+  [[ -n "$items" ]] || return 0
+
+  print -r -- "  ${label}："
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && print -r -- "    • $line"
+  done <<< "$items"
 }
 
-step_brew_upgrade() {
-  brew_step upgrade
+# 通用 log 解析：從 log 檔提取更新的套件名稱並印出。
+# 用法：parse_and_print_upgraded "顯示標籤" "log_file" "grep_pattern" "awk/sed 處理"
+# 各 ecosystem 的差異只在 grep pattern 和後處理，共用 guard + sort + print。
+print_upgraded_from_log() {
+  local label="$1"
+  local log_file="$2"
+  local upgraded="$3"
+
+  [[ -s "$log_file" ]] || return 0
+  [[ -n "$upgraded" ]] || return 0
+
+  print_updated_list "$label" "$upgraded"
 }
 
-step_brew_autoremove() {
-  brew_step autoremove
+# brew formula / cask：解析 "==> Upgrading foo 1.0 -> 2.0" 或 "Upgrading foo: 1.0 -> 2.0"
+print_brew_upgraded() {
+  local log_file="$1"
+  local upgraded
+
+  [[ -s "$log_file" ]] || return 0
+
+  upgraded=$(grep -E '^==> Upgrading [^0-9]' "$log_file" \
+    | sed 's/^==> Upgrading //' | sed 's/ [0-9].*//' | sort -u)
+
+  if [[ -z "$upgraded" ]]; then
+    upgraded=$(grep -E '^Upgrading ' "$log_file" \
+      | awk '{print $2}' | sed 's/:$//' | sort -u)
+  fi
+
+  print_upgraded_from_log "已更新套件" "$log_file" "$upgraded"
 }
 
-step_brew_cleanup() {
-  brew_step cleanup --prune=all
+# uv：解析 "Upgraded tool: old -> new" 或 "Updated X: old -> new"
+print_uv_upgraded() {
+  local log_file="$1"
+  local upgraded
+
+  [[ -s "$log_file" ]] || return 0
+
+  upgraded=$(grep -iE '^(Upgraded|Updated) ' "$log_file" \
+    | awk '{print $2}' | sed 's/:$//' | sort -u)
+
+  print_upgraded_from_log "已更新 uv tools" "$log_file" "$upgraded"
 }
 
-step_brew_doctor() {
-  brew_step doctor
+# pnpm：解析 " package 1.0.0 -> 2.0.0" 格式（表格輸出）
+print_pnpm_upgraded() {
+  local log_file="$1"
+  local upgraded
+
+  [[ -s "$log_file" ]] || return 0
+
+  upgraded=$(grep -E '^\s+\S+\s+[0-9]+\.' "$log_file" \
+    | awk '{print $1}' | grep -v '^$' | sort -u)
+
+  print_upgraded_from_log "已更新 pnpm 套件" "$log_file" "$upgraded"
 }
 
-step_brew_upgrade_cask() {
-  brew_step upgrade --cask --greedy
+# gup：解析 "Updated: vOLD -> vNEW" 行，取工具名稱
+print_gup_upgraded() {
+  local log_file="$1"
+  local upgraded
+
+  [[ -s "$log_file" ]] || return 0
+
+  upgraded=$(grep -E '\(Updated:' "$log_file" \
+    | sed 's|.*\] ||' | sed 's| (Updated:.*||' \
+    | awk -F'/' '{print $NF}' | sort -u)
+
+  print_upgraded_from_log "已更新 Go 工具" "$log_file" "$upgraded"
+}
+
+# zinit：解析更新了哪些 plugin
+print_zinit_upgraded() {
+  local log_file="$1"
+  local upgraded
+
+  [[ -s "$log_file" ]] || return 0
+
+  upgraded=$(grep -E '(Updated|Updating)' "$log_file" \
+    | grep -v 'Already\|up-to-date\|up to date' \
+    | sed 's/.*Updated[[:space:]]*//' \
+    | sed 's/.*Updating[[:space:]]*//' | sed 's/\.\.\..*//' \
+    | grep -v '^$' | sort -u)
+
+  print_upgraded_from_log "已更新 zinit 插件" "$log_file" "$upgraded"
 }
 
 step_zinit_update() {
@@ -374,7 +523,7 @@ step_update_uv_tools() {
 
   uv tool upgrade --all || return $?
 
-  if command -v brew >/dev/null 2>&1 && brew list uv >/dev/null 2>&1; then
+  if [[ -n "$BREW_BIN" ]] && "$BREW_BIN" list uv >/dev/null 2>&1; then
     typeset -g STEP_NOTE="tools 完成；略過 self update（Homebrew 管理）"
     return 0
   fi
@@ -385,7 +534,7 @@ step_update_uv_tools() {
   fi
 
   typeset -g STEP_NOTE="tools 完成；略過 self update（安裝方式不支援或更新失敗）"
-  return $WARN_EXIT_CODE
+  step_warn "$STEP_NOTE"
 }
 
 step_update_pnpm_global_tools() {
@@ -398,38 +547,142 @@ step_update_go_global_tools() {
   gup update
 }
 
+step_update_bun() {
+  require_cmd bun
+  bun upgrade
+}
+
+# gem 第一階段：更新 RubyGems 本體
+step_gem_system_update() {
+  require_cmd gem
+  gem update --system
+}
+
+# gem 第二階段：更新所有已安裝的 gem
+step_gem_update() {
+  require_cmd gem
+  gem update
+}
+
+# npm：不更新，僅檢查是否有全域套件並建議遷移至 pnpm
+step_npm_check() {
+  require_cmd npm
+
+  local pkgs
+  pkgs=$(npm list -g --depth=0 2>/dev/null | grep '├\|└' | awk '{print $2}')
+
+  if [[ -z "$pkgs" ]]; then
+    typeset -g STEP_NOTE="無全域套件"
+    return 0
+  fi
+
+  print -r -- "  ⚠ 發現 npm 全域套件，建議遷移至 pnpm："
+  while IFS= read -r entry; do
+    local pkg="${entry%@*}"
+    print -r -- "    • 安裝：pnpm add -g ${pkg}"
+    print -r -- "      移除：npm uninstall -g ${pkg}"
+  done <<< "$pkgs"
+
+  step_warn "發現全域套件，建議遷移至 pnpm"
+}
+
+# pipx：不更新，僅檢查是否有工具並建議遷移至 uv tool
+step_pipx_check() {
+  require_cmd pipx
+
+  local pkgs
+  pkgs=$(pipx list 2>/dev/null | grep 'package ' | awk '{print $2}' | sed 's/,//')
+
+  if [[ -z "$pkgs" ]]; then
+    typeset -g STEP_NOTE="無已安裝工具"
+    return 0
+  fi
+
+  print -r -- "  ⚠ 發現 pipx 工具，建議遷移至 uv tool："
+  while IFS= read -r pkg; do
+    print -r -- "    • 安裝：uv tool install ${pkg}"
+    print -r -- "      移除：pipx uninstall ${pkg}"
+  done <<< "$pkgs"
+
+  step_warn "發現已安裝工具，建議遷移至 uv tool"
+}
+
+# ── 主流程 ────────────────────────────────────────────────────
+
 # au：brew 主鏈前景執行，其餘可獨立的更新背景並行。
 run_main_update() {
-  TOTAL_STEPS=9
+  TOTAL_STEPS=16
 
-  run_bg_step "zinit_update" "zinit update" step_zinit_update
-  run_bg_step "uv_tools" "uv tools" step_update_uv_tools
-  run_bg_step "pnpm_globals" "pnpm 全域套件" step_update_pnpm_global_tools
-  run_bg_step "go_globals" "Go 全域工具" step_update_go_global_tools
+  # 第一階段：獨立更新背景並行
+  run_bg_step "zinit_update"   "zinit update"        step_zinit_update
+  run_bg_step "uv_tools"       "uv tools"            step_update_uv_tools
+  run_bg_step "pnpm_globals"   "pnpm 全域套件"       step_update_pnpm_global_tools
+  run_bg_step "go_globals"     "Go 全域工具"         step_update_go_global_tools
+  run_bg_step "bun_upgrade"    "bun upgrade"         step_update_bun
+  run_bg_step "gem_system"     "gem update --system" step_gem_system_update
+  run_bg_step "npm_check"      "npm 全域套件檢查"    step_npm_check
+  run_bg_step "pipx_check"     "pipx 工具檢查"       step_pipx_check
 
+  # brew 主鏈：update → upgrade → autoremove → cleanup → doctor
   if run_step "brew_update" "brew update" step_brew_update; then
     if run_step "brew_upgrade" "brew upgrade" step_brew_upgrade; then
+      print_brew_upgraded "${STEP_LOG[brew_upgrade]}"
       run_step "brew_autoremove" "brew autoremove" step_brew_autoremove
       run_step "brew_cleanup" "brew cleanup" step_brew_cleanup
       run_step "brew_doctor" "brew doctor" step_brew_doctor
     else
-      skip_step "brew_autoremove" "brew autoremove" "略過：brew upgrade 失敗"
-      skip_step "brew_cleanup" "brew cleanup" "略過：brew upgrade 失敗"
-      skip_step "brew_doctor" "brew doctor" "略過：brew upgrade 失敗"
+      skip_many "略過：brew upgrade 失敗" \
+        "brew_autoremove:brew autoremove" \
+        "brew_cleanup:brew cleanup" \
+        "brew_doctor:brew doctor"
     fi
   else
-    skip_step "brew_upgrade" "brew upgrade" "略過：brew update 失敗"
-    skip_step "brew_autoremove" "brew autoremove" "略過：brew update 失敗"
-    skip_step "brew_cleanup" "brew cleanup" "略過：brew update 失敗"
-    skip_step "brew_doctor" "brew doctor" "略過：brew update 失敗"
+    skip_many "略過：brew update 失敗" \
+      "brew_upgrade:brew upgrade" \
+      "brew_autoremove:brew autoremove" \
+      "brew_cleanup:brew cleanup" \
+      "brew_doctor:brew doctor"
   fi
 
+  # 收斂第一階段背景步驟
   collect_bg_steps
 
+  # 列出各背景步驟的更新內容
+  [[ "${STEP_STATUS[uv_tools]}"     == "OK" ]] && print_uv_upgraded    "${STEP_LOG[uv_tools]}"
+  [[ "${STEP_STATUS[pnpm_globals]}" == "OK" ]] && print_pnpm_upgraded  "${STEP_LOG[pnpm_globals]}"
+  [[ "${STEP_STATUS[go_globals]}"   == "OK" ]] && print_gup_upgraded   "${STEP_LOG[go_globals]}"
+  [[ "${STEP_STATUS[zinit_update]}" == "OK" ]] && print_zinit_upgraded "${STEP_LOG[zinit_update]}"
+
+  # 第二階段：依賴第一階段結果，彼此獨立可平行
+  local has_phase2=0
   if [[ "${STEP_STATUS[zinit_update]}" == "OK" ]]; then
-    run_step "zinit_self_update" "zinit self-update" step_zinit_self_update
+    run_bg_step "zinit_self_update" "zinit self-update" step_zinit_self_update
+    has_phase2=1
   else
     skip_step "zinit_self_update" "zinit self-update" "略過：zinit update 未成功"
+  fi
+
+  if [[ "${STEP_STATUS[gem_system]}" == "OK" ]]; then
+    run_bg_step "gem_update" "gem update" step_gem_update
+    has_phase2=1
+  else
+    skip_step "gem_update" "gem update" "略過：gem update --system 未成功"
+  fi
+
+  # 收斂第二階段
+  if (( has_phase2 )); then
+    # 重設 bg 陣列只保留第二階段的 step（第一階段已 collect 完畢）
+    local -a phase2_ids=() phase2_pids=()
+    local step_id
+    for step_id in zinit_self_update gem_update; do
+      if [[ -n "${STEP_PID[$step_id]}" && "${STEP_MESSAGE[$step_id]}" == "未執行" ]]; then
+        phase2_ids+=("$step_id")
+        phase2_pids+=("${STEP_PID[$step_id]}")
+      fi
+    done
+    BG_STEP_IDS=("${phase2_ids[@]}")
+    BG_PIDS=("${phase2_pids[@]}")
+    collect_bg_steps
   fi
 }
 
@@ -438,10 +691,23 @@ run_cask_update() {
   TOTAL_STEPS=2
 
   if run_step "brew_update" "brew update" step_brew_update; then
-    run_step "brew_cask_upgrade" "brew upgrade --cask --greedy" step_brew_upgrade_cask
+    if run_step "brew_cask_upgrade" "brew upgrade --cask --greedy" step_brew_upgrade_cask; then
+      print_brew_upgraded "${STEP_LOG[brew_cask_upgrade]}"
+    fi
   else
     skip_step "brew_cask_upgrade" "brew upgrade --cask --greedy" "略過：brew update 失敗"
   fi
+}
+
+usage() {
+  print -r -- "用法：a-update [cask]"
+  print -r -- ""
+  print -r -- "  (無參數)  執行完整系統更新（brew, zinit, uv, pnpm, go, bun, gem）"
+  print -r -- "  cask      僅更新 Homebrew cask 應用程式"
+  print -r -- ""
+  print -r -- "通常透過 alias 使用："
+  print -r -- "  au   完整更新"
+  print -r -- "  auc  僅 cask 更新"
 }
 
 main() {
@@ -451,16 +717,22 @@ main() {
   }
 
   case "$1" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
     "")
       log_info "開始執行 au"
       run_main_update
+      post_update_cleanup full
       ;;
     cask)
       log_info "開始執行 auc"
       run_cask_update
+      post_update_cleanup cask
       ;;
     *)
-      log_error "未知的參數 '$1'"
+      log_error "未知的參數 '$1'，使用 --help 查看用法"
       exit 1
       ;;
   esac

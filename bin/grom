@@ -4,10 +4,10 @@ config_file=".aConfig"
 
 # 檢查是否存在 .aConfig 檔案
 if [ -f "$config_file" ]; then
-  # 讀取 .phpConfig 檔案中的內容
+  # 讀取 .aConfig 檔案中的內容
   config_value=$(grep "main_branch=" "$config_file" | cut -d'=' -f2-)
 
-  # 檢查是否找到 php= 指令
+  # 檢查是否找到 main_branch= 指令
   if [ -n "$config_value" ]; then
     git rebase origin/"$config_value"
   else

@@ -1,23 +1,28 @@
-# git
+# Git 相關別名
 alias g="git"
 alias gp="git push"
 alias gpf="git push --force-with-lease"
-alias gl="git pull -p"  # -a 追加到 .git/FETCH_HEAD 而不是覆蓋它 ; -p 清除遠端已經不存在的分支的追蹤分支
+alias gl="git pull -p"  # -p 拉取時清除遠端已刪除分支的本地追蹤分支
 alias gc="git checkout"
-#alias gcm="git checkout master"
-# alias gcam="git commit -am"
 alias gb="git branch"
 alias gm="git merge"
 alias gs="git status"
-#alias gca="git checkout alex"
 alias grv="git remote -v"
-#alias gma="git merge origin/alex --no-edit"
-#alias grom="git rebase origin/master"
 alias gcb="git clear branch"
 alias gsu="git submodule update --init --recursive"
-alias gito="git open origin master"
 alias gai="cat ~/.config/.gitignore_global >> .git/info/exclude && cat .git/info/exclude"
-# alias gcd="git checkout dev"
+
+# 開啟 PR 頁面（讀取 .aConfig main_branch，預設 master）
+function gito() {
+  local config_file=".aConfig"
+  local main_branch="master"
+  if [ -f "$config_file" ]; then
+    local val
+    val=$(grep "main_branch=" "$config_file" | cut -d'=' -f2-)
+    [ -n "$val" ] && main_branch="$val"
+  fi
+  git open origin "$main_branch"
+}
 alias grh="git reset HEAD^"
 alias gba="git branch -a"
 alias gsur="git submodule update --recursive --remote"
@@ -25,16 +30,18 @@ alias grs="git restore --staged"
 alias gcm="git_check_mainBranch"
 alias ga.="git add . && git status"
 
-# git commit且push
+# git commit 並 push
 function gcp() {
+  [ -z "$1" ] && echo "請提供 commit message" && return 1
   git commit -am "$1" && git push -u origin "$(git rev-parse --abbrev-ref HEAD)"
 }
 function ga() {
-  git add "$1" && git status
+  git add "${1:-.}" && git status
 }
 
 function gma() {
-  config_file=".aConfig"
+  local config_file=".aConfig"
+  local config_value
 
   # 檢查是否存在 .aConfig 檔案
   if [ -f "$config_file" ]; then
@@ -62,17 +69,15 @@ function gma() {
   fi
 }
 
-#function gitpr() {
-#  git open origin master --suffix compare/master..."$(git rev-parse --abbrev-ref HEAD)"
-#}
-
 # 快速建立或更新 tmp commit
 alias gct="git_commit_tmp"
 function git_commit_tmp() {
-  # 獲取當前用戶的 git email
+  # 取得當前用戶的 git email
+  local current_user
   current_user=$(git config user.email)
   
-  # 獲取最新的 commit message 和 author email
+  # 取得最新的 commit message 和 author email
+  local last_commit_msg last_commit_author
   last_commit_msg=$(git log -1 --pretty=%s 2>/dev/null)
   last_commit_author=$(git log -1 --pretty=%ae 2>/dev/null)
   
@@ -86,8 +91,8 @@ function git_commit_tmp() {
   fi
   
   # 如果最新的 commit 是 "tmp"、作者是本人且尚未推上遠端，才用 amend
+  local current_branch remote_has_tmp=0
   current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
-  remote_has_tmp=0
   if git rev-parse --verify "origin/$current_branch" >/dev/null 2>&1; then
     if git merge-base --is-ancestor HEAD "origin/$current_branch"; then
       remote_has_tmp=1
@@ -103,8 +108,4 @@ function git_commit_tmp() {
   fi
 }
 
-# rebase master
-# function grm() {
-#   current="$(git rev-parse --abbrev-ref HEAD)"
-#   git checkout master && git pull && git checkout "$current" && git rebase origin/master && git push
-# }
+

@@ -77,7 +77,7 @@ _h265_calculate_quality() {
   local reference="$1"
   local comparison="$2"
   
-  # 創建臨時檔案儲存 ffmpeg 輸出
+  # 建立臨時檔案儲存 ffmpeg 輸出
   local temp_output
   temp_output=$(mktemp)
   
@@ -92,8 +92,8 @@ _h265_calculate_quality() {
   local psnr_avg
   psnr_avg=$(grep "PSNR" "$temp_output" | grep "average:" | tail -1 | sed -n 's/.*average:\([0-9.]*\).*/\1/p')
   
-  # 清理臨時檔案
-  rm -f "$temp_output"
+  # 清理臨時檔案（command rm 刻意繞過 trash alias）
+  command rm -f "$temp_output"
   
   # 返回結果（用空格分隔）
   echo "${ssim_avg:-0} ${psnr_avg:-0}"
@@ -575,10 +575,10 @@ function toH265() {
     return 0
   fi
 
-  # 創建臨時檔案並設置 trap 確保清理
+  # 建立臨時檔案並設定 trap 確保清理（command rm 刻意繞過 trash alias）
   local ffmpeg_stderr
   ffmpeg_stderr=$(mktemp)
-  trap 'rm -f "$ffmpeg_stderr"' EXIT INT TERM
+  trap 'command rm -f "$ffmpeg_stderr"' EXIT INT TERM
   
   # 記錄開始時間
   local start_timestamp
@@ -654,8 +654,6 @@ function toH265() {
     echo ""
     return 1
   fi
-  
-  # trap 會自動清理臨時檔案
 }
 
 # 測試不同參數組合的函數
@@ -667,7 +665,7 @@ function toH265Test() {
     unsetopt xtrace verbose 2>/dev/null
   } 2>/dev/null
   
-  # 設置 Ctrl+C 中斷處理
+  # 設定 Ctrl+C 中斷處理
   trap 'echo ""; echo ""; echo "⚠️  測試已中斷"; kill -INT $$' INT TERM
   
   # 檢查依賴
@@ -797,7 +795,7 @@ function toH265Test() {
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo ""
 
-  # 創建測試結果目錄
+  # 建立測試結果目錄
   local base_name="${input_file%.*}"
   local test_dir="${base_name}_h265_test"
   mkdir -p "$test_dir"
@@ -809,7 +807,7 @@ function toH265Test() {
   local total_start_time
   total_start_time=$(date +%s)
 
-  # 如果 speed=1，先創建原始裁切版本作為參考
+  # 如果 speed=1，先建立原始裁切版本作為參考
   if [ "$speed" = "1" ] || [ "$speed" = "1.0" ]; then
     total_tests=$((total_tests + 1))
     local orig_output="${test_dir}/original_copy.mp4"

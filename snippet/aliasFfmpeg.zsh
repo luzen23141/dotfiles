@@ -73,7 +73,7 @@ function ffmpeg_ssim_psnr() {
   echo "⏳ 正在分析影片品質..."
   echo ""
 
-  # 創建臨時檔案儲存 ffmpeg 輸出
+  # 建立臨時檔案儲存 ffmpeg 輸出
   local temp_output
   temp_output=$(mktemp)
   trap 'rm -f "$temp_output"' EXIT INT TERM

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==========================================
-# 全域配置
+# 全域設定
 # ==========================================
 CONFIG_FILE="$HOME/Library/Mobile Documents/com~apple~CloudDocs/dotfiles_data/backup.json"
 # ==========================================
@@ -29,8 +29,8 @@ resolve_path() {
     
     # 如果路徑已經是絕對路徑，直接處理
     if [[ "$path" == /* ]]; then
-        # 使用 Python 來標準化路徑，正確處理包含空格的路徑
-        python3 -c "import os, sys; print(os.path.normpath(sys.argv[1]))" "$path" 2>/dev/null || echo "$path"
+        # 用 realpath 標準化路徑（去除 ../），不需啟動 Python
+        realpath "$path" 2>/dev/null || echo "$path"
     else
         echo "$path"
     fi
@@ -56,9 +56,9 @@ fi
 # 4. 標準化路徑 (去除 ../ )
 BACKUP_ROOT=$(resolve_path "$BACKUP_ROOT_RAW")
 
-# 調試輸出（可選）
-# echo "DEBUG: BACKUP_ROOT_RAW = $BACKUP_ROOT_RAW"
-# echo "DEBUG: BACKUP_ROOT = $BACKUP_ROOT"
+# 除錯輸出（可選）
+# echo "除錯：BACKUP_ROOT_RAW = $BACKUP_ROOT_RAW"
+# echo "除錯：BACKUP_ROOT = $BACKUP_ROOT"
 
 
 # ------------------------------------------------
@@ -354,7 +354,6 @@ backup_git_repo() {
 
     if [ -d "$dest_path/.git" ]; then
         echo "   [Git/已存在] $dest_path"
-#        git -C "$dest_path" pull --quiet
     elif [ -d "$dest_path" ] && [ -z "$(ls -A "$dest_path")" ]; then
         # 資料夾存在但是空的 -> 安全，直接 Clone
         echo "   [Git/下載] (空目錄) $url -> $dest_path"
@@ -370,7 +369,7 @@ backup_git_repo() {
 }
 
 # ------------------------------------------------
-# 4. 主邏輯
+# 6. 主邏輯
 # ------------------------------------------------
 main() {
     local mode="$1"

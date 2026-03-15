@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Required parameters:
+# 必要參數：
 # @raycast.schemaVersion 1
 # @raycast.title Focus Gemini
 # @raycast.mode silent
 
-# Optional parameters:
+# 選填參數：
 # @raycast.packageName Vivaldi Utils
 # @raycast.icon 🤖
 
