@@ -369,7 +369,7 @@ handle_interrupt() {
 }
 
 cleanup_temp_dir() {
-  [[ -d "$TMP_DIR" ]] && rm -rf "$TMP_DIR"
+  [[ -d "$TMP_DIR" ]] && command rm -rf "$TMP_DIR"
 }
 
 trap 'handle_interrupt' INT TERM
@@ -384,7 +384,7 @@ post_update_cleanup() {
 
   case "$mode" in
     full)
-      rm -f "${XDG_CACHE_HOME:-$HOME/.cache}/brew_shellenv.zsh" \
+      command rm -f "${XDG_CACHE_HOME:-$HOME/.cache}/brew_shellenv.zsh" \
             "${ZINIT[ZCOMPDUMP_PATH]}" 2>/dev/null
       ;;
     cask)

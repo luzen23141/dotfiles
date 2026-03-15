@@ -4,8 +4,8 @@ is_color() {
 
     # 檢查是否有傳入參數
     if [ $# -eq 0 ]; then
-        echo "用法: check_image_bw <圖片路徑...>"
-        echo "範例: check_image_bw *.png"
+        echo "用法: is_color <圖片路徑...>"
+        echo "範例: is_color *.png"
         return 1
     fi
 

@@ -154,7 +154,7 @@ cleanup_bg_jobs() {
 
 cleanup() {
     cleanup_bg_jobs
-    [[ -n "$RES_DIR" && -d "$RES_DIR" ]] && rm -rf "$RES_DIR"
+    [[ -n "$RES_DIR" && -d "$RES_DIR" ]] && command rm -rf "$RES_DIR"
 }
 
 handle_interrupt() {

@@ -7,9 +7,9 @@ import yaml
 
 @dataclass
 class FolderListClass:
-    git_folder: dict
-    symlink_data: dict
-    copy_data: dict
+    git_folder: dict[str, dict[str, str]]
+    symlink_data: dict[str, dict[str, str]]
+    copy_data: dict[str, dict[str, str]]
 
 
 def process_yaml(yaml_file):
@@ -22,7 +22,7 @@ def process_yaml(yaml_file):
     Returns:
       一個字典，其中包含 key-value 結構。
     """
-    with open(yaml_file, "r") as f:
+    with open(yaml_file, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
     folder_list = FolderListClass(git_folder={}, symlink_data={}, copy_data={})
 
@@ -46,15 +46,15 @@ def process_yaml(yaml_file):
                 traverse(value, new_path)
                 continue
 
-            match value.get("type"):
+            item_type: str = value["type"]
+            item_path: str = value["path"]
+            match item_type:
                 case "git":
-                    folder_list.git_folder.setdefault(path, {})[key] = value.get("path")
+                    folder_list.git_folder.setdefault(path, {})[key] = item_path
                 case "symlink":
-                    folder_list.symlink_data.setdefault(path, {})[key] = value.get(
-                        "path"
-                    )
+                    folder_list.symlink_data.setdefault(path, {})[key] = item_path
                 case "copy":
-                    folder_list.copy_data.setdefault(path, {})[key] = value.get("path")
+                    folder_list.copy_data.setdefault(path, {})[key] = item_path
                 case _:
                     print(f"警告：{key} 在 {path} 中的類型無效。")
 
@@ -81,7 +81,11 @@ def create_folders_and_clone(data: FolderListClass):
 
 
 if __name__ == "__main__":
-    config_path = os.path.join(os.getenv("ICLOUD_DATA"), "code_folder.yaml")
+    icloud_data = os.getenv("ICLOUD_DATA")
+    if not icloud_data:
+        print("錯誤：環境變數 ICLOUD_DATA 未設定")
+        raise SystemExit(1)
+    config_path = os.path.join(icloud_data, "code_folder.yaml")
     yaml_data = process_yaml(config_path)
     # print(yaml_data)  # 除錯用，可取消註解
     create_folders_and_clone(yaml_data)

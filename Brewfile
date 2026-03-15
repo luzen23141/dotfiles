@@ -104,8 +104,6 @@ cask "1password"
 cask "aldente"
 # Platform for API documentation, debugging, Mock and testing
 cask "apipost"
-# Platform for API documentation, debugging, Mock and testing
-cask "apipost7"
 # Web browser focusing on privacy
 cask "brave-browser"
 cask "font-hack-nerd-font"
@@ -169,4 +167,5 @@ cask "vivaldi"
 cask "vlc"
 # Multiplayer code editor
 cask "zed"
+# Go packages
 go "github.com/xuri/xgen/cmd/xgen"

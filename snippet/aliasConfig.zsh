@@ -41,27 +41,27 @@ alias vimc="vim +'%d|w'"           # 清空檔案後開啟 vim
 alias cluade="claude"              # typo 防呆
 alias atg="antigravity"
 alias anti="antigravity"
-alias btc="curl https://min-api.cryptocompare.com/data/price\?fsym=BTC\&tsyms=USD"
-alias eth="curl https://min-api.cryptocompare.com/data/price\?fsym=ETH\&tsyms=USD"
+alias btc='curl "https://min-api.cryptocompare.com/data/price?fsym=BTC&tsyms=USD"'
+alias eth='curl "https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=USD"'
 
 # ── screen ────────────────────────────────────────────────────
 alias sc="screen_new"
 alias scl="screen -ls"
 alias scr="screen -r"
-alias scd="screen_X_S_Input_quit"
+alias scd="screen_quit_session"
 
-function screen_X_S_Input_quit() {
-    screen -X -S "$1" quit
+function screen_quit_session() {
+  screen -X -S "$1" quit
 }
 
 function screen_new() {
-    if [ $# -eq 0 ]; then
-        screen
-    elif [[ $1 == -* ]]; then
-        screen "$@"
-    else
-        screen -S "$@"
-    fi
+  if [ $# -eq 0 ]; then
+    screen
+  elif [[ $1 == -* ]]; then
+    screen "$@"
+  else
+    screen -S "$@"
+  fi
 }
 
 # ── ao：用指定 IDE 開啟 z 路徑 ────────────────────────────────
@@ -85,10 +85,8 @@ function a_open_path_by_app() {
   esac
 
   echo "使用$openApp開啟$openPath"
-  # 依序嘗試 zoxide (z query) 或 zlua (_zlua -e)
-  if command -v zoxide &> /dev/null; then
-    matched_path="$(zoxide query "$openPath" 2>/dev/null | head -n 1)"
-  elif command -v _zlua &> /dev/null; then
+  # 使用 z.lua 查詢路徑
+  if command -v _zlua &> /dev/null; then
     matched_path="$(_zlua -e "$openPath" | head -n 1)"
   fi
 
@@ -119,7 +117,7 @@ vimp() {
     old_stats="行數: $(wc -l < "$target_file" | tr -d ' '), 字元: $(wc -c < "$target_file" | tr -d ' ')"
     mkdir -p "$HOME/.ai_trash"
     backup_path="$HOME/.ai_trash/$(basename "$target_file")_$(date +%Y%m%d_%H%M%S)"
-    cp "$target_file" "$backup_path"
+    command cp "$target_file" "$backup_path"
   fi
 
   if ! pbpaste > "$temp_file"; then
@@ -163,7 +161,6 @@ function polling() {
   while true; do
     date +"%H:%M:%S"
     "${cmd_parts[@]}"
-    wait
     sleep "$2"
     printf "\n\n"
   done

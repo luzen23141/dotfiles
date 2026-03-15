@@ -94,6 +94,29 @@ sync_files() {
     fi
 }
 
+quit_app_if_running() {
+    local app_name="$1"
+    if osascript -e "tell application \"System Events\" to (name of processes) contains \"$app_name\"" 2>/dev/null | grep -q "true"; then
+        echo "      應用運行中，準備關閉: $app_name"
+        osascript -e "tell application \"$app_name\" to quit" 2>/dev/null || {
+            echo "      [警告] 無法正常關閉，嘗試強制關閉"
+            killall "$app_name" 2>/dev/null || true
+        }
+        local wait_count=0
+        while [ $wait_count -lt 5 ]; do
+            if ! osascript -e "tell application \"System Events\" to (name of processes) contains \"$app_name\"" 2>/dev/null | grep -q "true"; then
+                break
+            fi
+            sleep 1
+            ((wait_count++))
+        done
+        return 0
+    else
+        echo "      應用未運行: $app_name"
+        return 1
+    fi
+}
+
 # ------------------------------------------------
 # 2. 函數: 處理軟連結
 # ------------------------------------------------
@@ -182,29 +205,7 @@ handle_app_config() {
         
         # 1. 檢查應用程式是否正在運行（使用 AppleScript）
         local app_was_running=false
-        if osascript -e "tell application \"System Events\" to (name of processes) contains \"$app_name\"" 2>/dev/null | grep -q "true"; then
-            app_was_running=true
-            echo "      應用運行中，準備關閉: $app_name"
-            
-            # 使用 AppleScript 優雅地關閉應用程式
-            osascript -e "tell application \"$app_name\" to quit" 2>/dev/null || {
-                echo "      [警告] 無法正常關閉，嘗試強制關閉"
-                # 如果正常關閉失敗，使用 killall 強制終止
-                killall "$app_name" 2>/dev/null || true
-            }
-            
-            # 等待應用完全關閉（最多等待 5 秒）
-            local wait_count=0
-            while [ $wait_count -lt 5 ]; do
-                if ! osascript -e "tell application \"System Events\" to (name of processes) contains \"$app_name\"" 2>/dev/null | grep -q "true"; then
-                    break
-                fi
-                sleep 1
-                ((wait_count++))
-            done
-        else
-            echo "      應用未運行: $app_name"
-        fi
+        quit_app_if_running "$app_name" && app_was_running=true
         
         # 2. 複製 plist 檔案
         local plist_count
@@ -239,7 +240,7 @@ handle_app_config() {
         # 3. 如果應用原本在運行，重新開啟
         if [ "$app_was_running" = true ]; then
             echo "      重新開啟應用: $app_name"
-            killall cfprefsd
+            killall cfprefsd 2>/dev/null || true
             sleep 1
             open -a "$app_name" 2>/dev/null || echo "      [警告] 無法開啟 $app_name"
         else
@@ -293,28 +294,7 @@ handle_export_plist_config() {
         
         # 1. 檢查應用程式是否正在運行（使用 AppleScript）
         local app_was_running=false
-        if osascript -e "tell application \"System Events\" to (name of processes) contains \"$app_name\"" 2>/dev/null | grep -q "true"; then
-            app_was_running=true
-            echo "      應用運行中，準備關閉: $app_name"
-            
-            # 使用 AppleScript 優雅地關閉應用程式
-            osascript -e "tell application \"$app_name\" to quit" 2>/dev/null || {
-                echo "      [警告] 無法正常關閉，嘗試強制關閉"
-                killall "$app_name" 2>/dev/null || true
-            }
-            
-            # 等待應用完全關閉（最多等待 5 秒）
-            local wait_count=0
-            while [ $wait_count -lt 5 ]; do
-                if ! osascript -e "tell application \"System Events\" to (name of processes) contains \"$app_name\"" 2>/dev/null | grep -q "true"; then
-                    break
-                fi
-                sleep 1
-                ((wait_count++))
-            done
-        else
-            echo "      應用未運行: $app_name"
-        fi
+        quit_app_if_running "$app_name" && app_was_running=true
         
         # 2. 導入設定
         echo "      導入: $backup_file -> $domain"

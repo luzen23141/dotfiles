@@ -1,24 +1,7 @@
 #!/bin/bash
 # usage — 顯示 Claude Code + OpenAI Codex 剩餘額度
 # 資料來源: OpenCode auth.json (anthropic + openai OAuth tokens)
-# 用法: usage [-w|--watch [秒數]]  預設 60 秒自動刷新
 set -f
-
-# ── Watch 模式 ──────────────────────────────────────────
-WATCH=false; INTERVAL=60
-case "$1" in
-  -w|--watch)
-    WATCH=true
-    if [[ -n "$2" ]]; then
-      if [[ "$2" =~ ^[0-9]+$ && "$2" -ge 60 ]]; then
-        INTERVAL=$2
-      else
-        printf "\033[31m✗ 最低刷新間隔為 60 秒（避免 API 頻率限制）\033[0m\n"
-        exit 1
-      fi
-    fi
-    ;;
-esac
 
 # ── ANSI 色碼 ───────────────────────────────────────────
 RESET='\033[0m'; BOLD='\033[1m'; DIM='\033[2m'
@@ -124,6 +107,29 @@ print_header() {
   printf "\n${BOLD}${CYAN}  %s${RESET}  %b\n\n" "$1" "$2"
 }
 
+# 解析 API 錯誤回應，回傳人類可讀的錯誤訊息
+# 用法: parse_api_error <response_body> <http_status>
+parse_api_error() {
+  local body="$1" status="$2"
+  local msg=""
+
+  # 嘗試從 JSON 提取錯誤訊息
+  if [[ -n "$body" ]]; then
+    msg=$(echo "$body" | jq -r '
+      .error.message // .error // .detail // .message // empty
+    ' 2>/dev/null)
+  fi
+
+  case "$status" in
+    401) printf "認證失敗 (401)${msg:+: $msg}" ;;
+    403) printf "權限不足 (403)${msg:+: $msg}" ;;
+    429) printf "頻率限制 (429)${msg:+: $msg}" ;;
+    5*)  printf "伺服器錯誤 ($status)${msg:+: $msg}" ;;
+    000) printf "連線逾時或網路錯誤" ;;
+    *)   printf "HTTP $status${msg:+: $msg}" ;;
+  esac
+}
+
 # ── 尋找 OpenCode auth.json ────────────────────────────
 AUTH_FILE=""
 for p in \
@@ -141,112 +147,121 @@ if [[ -z "$AUTH_FILE" ]]; then
 fi
 
 # ── 主要邏輯（fetch + 輸出）────────────────────────────
-run_once() {
-  # 一次讀取所有 token
-  eval "$(python3 -c "
-import json, shlex
-d = json.load(open('$AUTH_FILE'))
+# 確認 python3 存在
+command -v python3 >/dev/null || { printf "${RED}✗ 需要 python3${RESET}\n"; exit 1; }
+
+# 一次讀取所有 token（透過環境變數傳遞路徑，避免路徑注入）
+eval "$(AUTH_FILE="$AUTH_FILE" python3 -c "
+import json, os, shlex
+d = json.load(open(os.environ['AUTH_FILE']))
 ant = d.get('anthropic', {})
 oai = d.get('openai', {})
-print(f'CLAUDE_TOKEN={shlex.quote(ant.get(\"access\", \"\"))}')
-print(f'OAI_TOKEN={shlex.quote(oai.get(\"access\", \"\"))}')
-print(f'OAI_ACCT={shlex.quote(oai.get(\"accountId\", \"\"))}')
+print('CLAUDE_TOKEN=' + shlex.quote(ant.get('access', '')))
+print('OAI_TOKEN=' + shlex.quote(oai.get('access', '')))
+print('OAI_ACCT=' + shlex.quote(oai.get('accountId', '')))
 " 2>/dev/null)"
 
-  # 並行 API 請求
-  local claude_tmp=$(mktemp) codex_tmp=$(mktemp) claude_prof=$(mktemp)
-  local pid_c="" pid_o=""
+# 並行 API 請求（使用 -w '%{http_code}' 捕獲 HTTP 狀態碼）
+claude_tmp=$(mktemp) codex_tmp=$(mktemp) claude_prof=$(mktemp)
+claude_status_tmp=$(mktemp) codex_status_tmp=$(mktemp) claude_prof_status_tmp=$(mktemp)
+pid_c="" pid_o=""
 
-  if [[ -n "$CLAUDE_TOKEN" ]]; then
-    (
-      H=(-H "Authorization: Bearer $CLAUDE_TOKEN" -H "anthropic-beta: oauth-2025-04-20")
-      curl -s --max-time 10 -H "Accept: application/json" "${H[@]}" \
-        "https://api.anthropic.com/api/oauth/usage" > "$claude_tmp" &
-      curl -s --max-time 10 "${H[@]}" \
-        "https://api.anthropic.com/api/oauth/profile" > "$claude_prof" &
-      wait
-    ) &
-    pid_c=$!
-  fi
-
-  if [[ -n "$OAI_TOKEN" ]]; then
-    (
-      H=(-H "Authorization: Bearer $OAI_TOKEN" -H "User-Agent: OpenCode-Status/1.0")
-      [[ -n "$OAI_ACCT" ]] && H+=(-H "ChatGPT-Account-Id: $OAI_ACCT")
-      curl -s --max-time 10 "${H[@]}" \
-        "https://chatgpt.com/backend-api/wham/usage" > "$codex_tmp"
-    ) &
-    pid_o=$!
-  fi
-
-  [[ -n "$pid_c" ]] && wait "$pid_c"
-  [[ -n "$pid_o" ]] && wait "$pid_o"
-
-  # ── Claude Code 輸出 ─────────────────────────────────
-  local claude_data=""; [[ -s "$claude_tmp" ]] && claude_data=$(<"$claude_tmp")
-
-  if [[ -n "$claude_data" ]] && echo "$claude_data" | jq -e '.five_hour' >/dev/null 2>&1; then
-    local acct=""
-    if [[ -s "$claude_prof" ]] && jq -e '.account' "$claude_prof" >/dev/null 2>&1; then
-      local email; email=$(jq -r '.account.email // empty' "$claude_prof")
-      local org; org=$(jq -r '.organization.organization_type // empty' "$claude_prof")
-      local plan="pro"
-      [[ "$org" == *max* ]] && plan="max"
-      [[ "$org" == *free* ]] && plan="free"
-      [[ -n "$email" ]] && acct="${DIM}${email} (${plan})${RESET}"
-    fi
-
-    print_header "Claude Code" "$acct"
-    print_claude_window "$claude_data" "five_hour"        "5-hour"
-    printf "\n"
-    print_claude_window "$claude_data" "seven_day"        "weekly"
-    printf "\n"
-    print_claude_window "$claude_data" "seven_day_sonnet" "sonnet"
-  else
-    print_header "Claude Code" "${RED}✗ 無法取得${RESET}"
-  fi
-
-  # ── OpenAI Codex 輸出 ────────────────────────────────
-  local codex_data=""; [[ -s "$codex_tmp" ]] && codex_data=$(<"$codex_tmp")
-
-  if [[ -n "$codex_data" ]] && echo "$codex_data" | jq -e '.rate_limit' >/dev/null 2>&1; then
-    local email; email=$(echo "$codex_data" | jq -r '.email // "unknown"')
-    local plan; plan=$(echo "$codex_data" | jq -r '.plan_type // "unknown"')
-
-    print_header "OpenAI Codex" "${DIM}${email} (${plan})${RESET}"
-    print_codex_window "$codex_data" ".rate_limit.primary_window"
-
-    if echo "$codex_data" | jq -e '.rate_limit.secondary_window' >/dev/null 2>&1; then
-      printf "\n"
-      print_codex_window "$codex_data" ".rate_limit.secondary_window"
-    fi
-
-    if [[ "$(echo "$codex_data" | jq -r '.rate_limit.limit_reached')" == "true" ]]; then
-      printf "\n  ${RED}${BOLD}⚠ 已達到速率限制！${RESET}\n"
-    fi
-  else
-    print_header "OpenAI Codex" "${RED}✗ 無法取得${RESET}"
-  fi
-
-  # 時間戳
-  printf "\n  ${DIM}updated %s${RESET}\n" "$(date +"%H:%M:%S")"
-
-  # 清理 tmp
-  rm -f "$claude_tmp" "$codex_tmp" "$claude_prof"
-}
-
-# ── 執行 ────────────────────────────────────────────────
-if $WATCH; then
-  trap 'printf "\033[?25h\n"; exit 0' INT  # 退出時恢復游標
-  while true; do
-    clear
-    run_once
-    # 原地倒數計時
-    for (( remaining=INTERVAL; remaining>0; remaining-- )); do
-      printf "\r  ${DIM}next in ${WHITE}%ds${RESET}${DIM} · Ctrl+C to exit${RESET}  " "$remaining"
-      sleep 1
-    done
-  done
-else
-  run_once
+if [[ -n "$CLAUDE_TOKEN" ]]; then
+  (
+    H=(-H "Authorization: Bearer $CLAUDE_TOKEN" -H "anthropic-beta: oauth-2025-04-20")
+    curl -s -w '%{http_code}' --max-time 10 -H "Accept: application/json" "${H[@]}" \
+      "https://api.anthropic.com/api/oauth/usage" -o "$claude_tmp" > "$claude_status_tmp" &
+    curl -s -w '%{http_code}' --max-time 10 "${H[@]}" \
+      "https://api.anthropic.com/api/oauth/profile" -o "$claude_prof" > "$claude_prof_status_tmp" &
+    wait
+  ) &
+  pid_c=$!
 fi
+
+if [[ -n "$OAI_TOKEN" ]]; then
+  (
+    H=(-H "Authorization: Bearer $OAI_TOKEN" -H "User-Agent: OpenCode-Status/1.0")
+    [[ -n "$OAI_ACCT" ]] && H+=(-H "ChatGPT-Account-Id: $OAI_ACCT")
+    curl -s -w '%{http_code}' --max-time 10 "${H[@]}" \
+      "https://chatgpt.com/backend-api/wham/usage" -o "$codex_tmp" > "$codex_status_tmp"
+  ) &
+  pid_o=$!
+fi
+
+[[ -n "$pid_c" ]] && wait "$pid_c"
+[[ -n "$pid_o" ]] && wait "$pid_o"
+
+# ── Claude Code 輸出 ─────────────────────────────────
+claude_data=""; [[ -s "$claude_tmp" ]] && claude_data=$(<"$claude_tmp")
+claude_http=""; [[ -s "$claude_status_tmp" ]] && claude_http=$(<"$claude_status_tmp")
+
+if [[ -n "$claude_data" ]] && echo "$claude_data" | jq -e '.five_hour' >/dev/null 2>&1; then
+  acct=""
+  if [[ -s "$claude_prof" ]] && jq -e '.account' "$claude_prof" >/dev/null 2>&1; then
+    email=$(jq -r '.account.email // empty' "$claude_prof")
+    org=$(jq -r '.organization.organization_type // empty' "$claude_prof")
+    plan="pro"
+    [[ "$org" == *max* ]] && plan="max"
+    [[ "$org" == *free* ]] && plan="free"
+    [[ -n "$email" ]] && acct="${DIM}${email} (${plan})${RESET}"
+  fi
+
+  print_header "Claude Code" "$acct"
+  print_claude_window "$claude_data" "five_hour"        "5-hour"
+  printf "\n"
+  print_claude_window "$claude_data" "seven_day"        "weekly"
+  printf "\n"
+  print_claude_window "$claude_data" "seven_day_sonnet" "sonnet"
+else
+  err_detail=""
+  if [[ -z "$CLAUDE_TOKEN" ]]; then
+    err_detail="auth.json 中無 anthropic token"
+  elif [[ -n "$claude_http" && "$claude_http" != "200" ]]; then
+    err_detail=$(parse_api_error "$claude_data" "$claude_http")
+  elif [[ -z "$claude_data" ]]; then
+    err_detail="回應為空（連線逾時或網路錯誤）"
+  else
+    err_detail="回應格式異常"
+  fi
+  print_header "Claude Code" "${RED}✗ ${err_detail}${RESET}"
+fi
+
+# ── OpenAI Codex 輸出 ────────────────────────────────
+codex_data=""; [[ -s "$codex_tmp" ]] && codex_data=$(<"$codex_tmp")
+codex_http=""; [[ -s "$codex_status_tmp" ]] && codex_http=$(<"$codex_status_tmp")
+
+if [[ -n "$codex_data" ]] && echo "$codex_data" | jq -e '.rate_limit' >/dev/null 2>&1; then
+  email=$(echo "$codex_data" | jq -r '.email // "unknown"')
+  plan=$(echo "$codex_data" | jq -r '.plan_type // "unknown"')
+
+  print_header "OpenAI Codex" "${DIM}${email} (${plan})${RESET}"
+  print_codex_window "$codex_data" ".rate_limit.primary_window"
+
+  if echo "$codex_data" | jq -e '.rate_limit.secondary_window' >/dev/null 2>&1; then
+    printf "\n"
+    print_codex_window "$codex_data" ".rate_limit.secondary_window"
+  fi
+
+  if [[ "$(echo "$codex_data" | jq -r '.rate_limit.limit_reached')" == "true" ]]; then
+    printf "\n  ${RED}${BOLD}⚠ 已達到速率限制！${RESET}\n"
+  fi
+else
+  err_detail=""
+  if [[ -z "$OAI_TOKEN" ]]; then
+    err_detail="auth.json 中無 openai token"
+  elif [[ -n "$codex_http" && "$codex_http" != "200" ]]; then
+    err_detail=$(parse_api_error "$codex_data" "$codex_http")
+  elif [[ -z "$codex_data" ]]; then
+    err_detail="回應為空（連線逾時或網路錯誤）"
+  else
+    err_detail="回應格式異常"
+  fi
+  print_header "OpenAI Codex" "${RED}✗ ${err_detail}${RESET}"
+fi
+
+# 時間戳
+printf "\n  ${DIM}updated %s${RESET}\n" "$(date +"%H:%M:%S")"
+
+# 清理 tmp
+command rm -f "$claude_tmp" "$codex_tmp" "$claude_prof" \
+  "$claude_status_tmp" "$codex_status_tmp" "$claude_prof_status_tmp"

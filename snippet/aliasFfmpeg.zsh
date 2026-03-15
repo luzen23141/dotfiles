@@ -76,7 +76,7 @@ function ffmpeg_ssim_psnr() {
   # 建立臨時檔案儲存 ffmpeg 輸出
   local temp_output
   temp_output=$(mktemp)
-  trap 'rm -f "$temp_output"' EXIT INT TERM
+  trap 'command rm -f "$temp_output"' EXIT INT TERM
 
   # 執行 ffmpeg 並捕獲輸出
   ffmpeg -i "$reference" -i "$comparison" -lavfi "[0:v]setpts=PTS-STARTPTS[v0];[1:v]setpts=PTS-STARTPTS[v1];[v0][v1]ssim;[0:v]setpts=PTS-STARTPTS[v0];[1:v]setpts=PTS-STARTPTS[v1];[v0][v1]psnr" -f null - 2>&1 | tee "$temp_output"
@@ -193,7 +193,7 @@ function ffmpeg_ssim_psnr() {
 #     60-80      = 一般品質 (明顯但可容忍的差異)
 #     < 60       = 品質不佳 (明顯的品質損失)
 #
-# 注意：需要 VMAF 模型檔案位於 /Users/alex/dotfiles/vmaf_v0.6.1.json
+# 注意：需要 VMAF 模型檔案位於 $DOTFILES/vmaf_v0.6.1.json
 #=======================================================================
 alias ffmvmaf="ffmpeg_vmaf"
 function ffmpeg_vmaf() {
@@ -285,7 +285,7 @@ function ffmpeg_vmaf() {
   fi
 
   # 檢查 VMAF 模型檔案
-  local vmaf_model="/Users/alex/dotfiles/vmaf_v0.6.1.json"
+  local vmaf_model="$DOTFILES/vmaf_v0.6.1.json"
   if [ ! -f "$vmaf_model" ]; then
     echo ""
     echo "❌ 錯誤：VMAF 模型檔案不存在: $vmaf_model"
@@ -295,13 +295,7 @@ function ffmpeg_vmaf() {
 
   # 取得 CPU 核心數量
   local cpu_cores
-  if command -v nproc &> /dev/null; then
-    cpu_cores=$(nproc)
-  elif command -v sysctl &> /dev/null; then
-    cpu_cores=$(sysctl -n hw.ncpu 2>/dev/null || echo "4")
-  else
-    cpu_cores="4"  # 預設值
-  fi
+  cpu_cores=$(sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
   echo ""
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -334,7 +328,7 @@ function ffmpeg_vmaf() {
   fi
 
   # 建立完整的 ffmpeg 命令
-  local ffmpeg_cmd=(ffmpeg -i "$reference" -i "$comparison" -filter_complex "$filter_complex" -f null -)
+  local ffmpeg_cmd=(ffmpeg -i "$comparison" -i "$reference" -filter_complex "$filter_complex" -f null -)
   
   # 如果是 dry-run 模式，只顯示命令不執行
   if [ "$dry_run" = true ]; then
@@ -648,7 +642,7 @@ function ffmpeg_merge() {
   fi
 
   # 設定 trap 確保清理暫存檔案
-  trap 'rm -f "$temp_list_file"' EXIT INT TERM
+  trap 'command rm -f "$temp_list_file"' EXIT INT TERM
 
   echo ""
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -678,16 +672,12 @@ function ffmpeg_merge() {
   echo ""
   if [ $ffmpeg_exit_code -eq 0 ]; then
     # 顯示輸出檔案大小
-    if command -v stat &> /dev/null; then
-      local output_size
-      output_size=$(stat -f%z "$output_file" 2>/dev/null || stat -c%s "$output_file" 2>/dev/null)
-      if [ -n "$output_size" ]; then
-        local size_mb
-        size_mb="$(echo "scale=2; $output_size / 1048576" | bc)"
-        echo "✅ 合併成功: $output_file (${size_mb} MB)"
-      else
-        echo "✅ 合併成功: $output_file"
-      fi
+    local output_size
+    output_size=$(stat -f%z "$output_file" 2>/dev/null)
+    if [ -n "$output_size" ]; then
+      local size_mb
+      size_mb="$(echo "scale=2; $output_size / 1048576" | bc)"
+      echo "✅ 合併成功: $output_file (${size_mb} MB)"
     else
       echo "✅ 合併成功: $output_file"
     fi
@@ -695,7 +685,7 @@ function ffmpeg_merge() {
     echo "❌ 錯誤：FFmpeg 合併失敗 (錯誤碼: $ffmpeg_exit_code)"
     # 刪除可能已產生的不完整輸出檔案
     if [ -f "$output_file" ]; then
-      rm -f "$output_file"
+      command rm -f "$output_file"
       echo "   已清理不完整的輸出檔案"
     fi
   fi

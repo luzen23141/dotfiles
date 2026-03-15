@@ -21,8 +21,9 @@ _setup_php_version_aliases() {
   done
 }
 
-# 執行別名設定
+# 執行別名設定後清理命名空間
 _setup_php_version_aliases
+unfunction _setup_php_version_aliases
 
 # Hyperf 框架預設別名
 alias hy='php bin/hyperf.php'

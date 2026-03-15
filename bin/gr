@@ -1,21 +1,12 @@
 #! /bin/zsh
 
-config_file=".aConfig"
+source "$DOTFILES"/helperFunc/configHelper
 
-# 檢查是否存在 .aConfig 檔案
-if [ -f "$config_file" ]; then
-  # 讀取 .aConfig 檔案中的內容
-  config_value=$(grep "go_run_default=" "$config_file" | cut -d'=' -f2-)
+config_value="$(getAConfig go_run_default "")"
 
-  # 檢查是否找到 go_run_default= 指令
-  if [ -n "$config_value" ]; then
-    cmd_parts=("${(@z)config_value}")
-    "${cmd_parts[@]}" "$@"
-  else
-    echo "未找到 go_run_default= 指令，執行預設指令"
-    go run . "$@"
-  fi
+if [ -n "$config_value" ]; then
+  cmd_parts=("${(@z)config_value}")
+  "${cmd_parts[@]}" "$@"
 else
-    echo "未找到 $config_file ，執行預設指令"
-    go run . "$@"
+  go run . "$@"
 fi

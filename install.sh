@@ -27,4 +27,4 @@ else
   fi
 fi
 
-zsh "$DOTFILES_TMP"/fresh.sh
+"$DOTFILES_TMP"/fresh.sh

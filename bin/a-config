@@ -240,7 +240,7 @@ reset_config() {
         echo -n "確定要重置本地配置嗎? (y/N) "
         read -r response
         if [[ "$response" =~ ^[Yy]$ ]]; then
-          rm -f "$CONFIG_FILE"
+          command rm -f "$CONFIG_FILE"
           print_success "已重置本地配置"
         else
           print_info "取消操作"
@@ -254,7 +254,7 @@ reset_config() {
         echo -n "確定要重置全域配置嗎? (y/N) "
         read -r response
         if [[ "$response" =~ ^[Yy]$ ]]; then
-          rm -f "$GLOBAL_CONFIG"
+          command rm -f "$GLOBAL_CONFIG"
           print_success "已重置全域配置"
         else
           print_info "取消操作"

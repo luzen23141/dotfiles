@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash bin/usage 2>&1 | head -30)",
+      "Bash(git show:*)",
+      "Bash(bash -x bin/usage 2>&1 | grep -E 'CLAUDE_TOKEN|OAI_TOKEN|eval' | head -10)",
+      "Bash(bash bin/usage 2>&1 | head -20)",
+      "Bash(bash bin/usage 2>&1 | head -25)"
+    ]
+  }
+}

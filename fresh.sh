@@ -1,12 +1,10 @@
-#!/bin/sh
+#!/bin/zsh
 
 echo "正在設定你的 Mac..."
 
 export DOTFILES="$HOME/dotfiles"
 
 cd "$(dirname "$0")" || { echo "Path Error"; exit 1; }
-
-. "$DOTFILES"/dotfileFunction.sh
 
 # 檢查 Homebrew 是否已安裝，若無則自動安裝
 if ! command -v brew > /dev/null 2>&1; then
@@ -35,20 +33,7 @@ ln -s "$DOTFILES"/.zshrc "$HOME"/.zshrc
 brew update
 
 # 透過 bundle 安裝所有相依套件（詳見 Brewfile）
-brew tap homebrew/bundle
-brew install mas
 brew bundle --file "$DOTFILES"/Brewfile
-
-# 設定 MySQL root 預設密碼與驗證方式
-#mysql -u root -e "ALTER USER root@localhost IDENTIFIED WITH mysql_native_password BY 'password'; FLUSH PRIVILEGES;"
-
-# 建立軟連結
-info '  Installing dotfiles'
-for src in $(find "$DOTFILES/autoLink" -maxdepth 2 -name '*.symlink' -not -path '*.git*')
-do
-  dst="$HOME/.$(basename "${src%.*}")"
-  link_file "$src" "$dst"
-done
 
 # 指定 iTerm2 偏好設定目錄
 defaults write com.googlecode.iterm2 PrefsCustomFolder -string "~/dotfiles/appConfig/iterm2"

@@ -32,6 +32,7 @@ export DOCKER_CONFIG="$XDG_CONFIG_HOME/.docker" # docker 全域設定
 # XDG 設定：cache
 export COMPOSER_HOME="$XDG_CACHE_HOME/composer" # composer 路徑
 export SHELL_SESSION_DIR="$XDG_CACHE_HOME/zsh_sessions" # zsh 各視窗 session 紀錄
+[[ -d "$SHELL_SESSION_DIR" ]] || mkdir -p "$SHELL_SESSION_DIR"
 
 # XDG 設定：data / history
 export LESSHISTFILE="$XDG_DATA_HOME/.lesshst" # less history 檔案

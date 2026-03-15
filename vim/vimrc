@@ -1,5 +1,5 @@
 set viminfofile=$HOME/.cache/.vim/.viminfo
-set runtimepath+=$HOME/dotfiles/vim
+set runtimepath+=$DOTFILES/vim
 set nocompatible
 set number
 set incsearch

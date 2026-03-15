@@ -10,18 +10,12 @@ alias gs="git status"
 alias grv="git remote -v"
 alias gcb="git clear branch"
 alias gsu="git submodule update --init --recursive"
-alias gai="cat ~/.config/.gitignore_global >> .git/info/exclude && cat .git/info/exclude"
+alias gai="command cat ~/.config/.gitignore_global >> .git/info/exclude && cat .git/info/exclude"
 
 # 開啟 PR 頁面（讀取 .aConfig main_branch，預設 master）
 function gito() {
-  local config_file=".aConfig"
-  local main_branch="master"
-  if [ -f "$config_file" ]; then
-    local val
-    val=$(grep "main_branch=" "$config_file" | cut -d'=' -f2-)
-    [ -n "$val" ] && main_branch="$val"
-  fi
-  git open origin "$main_branch"
+  source "$DOTFILES"/helperFunc/configHelper
+  git open origin "$(getAConfig main_branch master)"
 }
 alias grh="git reset HEAD^"
 alias gba="git branch -a"
@@ -30,42 +24,23 @@ alias grs="git restore --staged"
 alias gcm="git_check_mainBranch"
 alias ga.="git add . && git status"
 
-# git commit 並 push
-function gcp() {
-  [ -z "$1" ] && echo "請提供 commit message" && return 1
-  git commit -am "$1" && git push -u origin "$(git rev-parse --abbrev-ref HEAD)"
-}
 function ga() {
   git add "${1:-.}" && git status
 }
 
 function gma() {
-  local config_file=".aConfig"
-  local config_value
+  source "$DOTFILES"/helperFunc/configHelper
+  local mine_branch
+  mine_branch="$(getAConfig mine_branch alex)"
+  echo "執行指令 git merge origin/$mine_branch --no-edit"
+  git merge origin/"$mine_branch" --no-edit
 
-  # 檢查是否存在 .aConfig 檔案
-  if [ -f "$config_file" ]; then
-    # 讀取 .aConfig 檔案中的內容
-    config_value=$(grep "mine_branch=" "$config_file" | cut -d'=' -f2-)
-
-    if [ -n "$config_value" ]; then
-      echo "執行指令 git merge origin/$config_value --no-edit"
-      git merge origin/"$config_value" --no-edit
-    else
-      echo "未找到 mine_branch= 指令，執行預設指令 git merge origin/alex --no-edit"
-      git merge origin/alex --no-edit
-    fi
-
-    config_value=$(grep "merge_mine_check=" "$config_file" | cut -d'=' -f2-)
-    if [ -n "$config_value" ]; then
-      local cmd_parts=("${(@z)config_value}")
-      echo "執行指令 $config_value"
-      "${cmd_parts[@]}"
-    fi
-
-  else
-      echo "未找到 $config_file ，執行預設指令 git merge origin/alex --no-edit"
-      git merge origin/alex --no-edit
+  local merge_check
+  merge_check="$(getAConfig merge_mine_check "")"
+  if [ -n "$merge_check" ]; then
+    local cmd_parts=("${(@z)merge_check}")
+    echo "執行指令 $merge_check"
+    "${cmd_parts[@]}"
   fi
 }
 

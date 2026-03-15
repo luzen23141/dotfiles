@@ -6,14 +6,12 @@ updateAConfig() {
     local configPath=".aConfig"
 
     # 檢查並更新配置，或在檔案末尾新增配置
-    awk -v entry="$entry=" -v branchName="$branchName" '
+    if awk -v entry="$entry=" -v branchName="$branchName" '
     BEGIN {updated = 0}
     $0 ~ "^" entry {if (!updated) {print entry branchName; updated=1} next}
     {print}
     END {if (!updated) print entry branchName}
-    ' "$configPath" > "$configPath.tmp" && mv "$configPath.tmp" "$configPath"
-
-    if [[ $? -eq 0 ]]; then
+    ' "$configPath" > "$configPath.tmp" && mv "$configPath.tmp" "$configPath"; then
         echo "配置更新成功。"
         return 0
     else
@@ -26,7 +24,7 @@ getAConfig(){
   local entry=$1
   local default=$2
 
-  value=$(grep -v '^#' .aConfig | grep "$entry=" | cut -d'=' -f2-)
+  value=$(grep -v '^#' .aConfig 2>/dev/null | grep -m 1 "$entry=" | cut -d'=' -f2-)
 
   # 若為空字串則回傳預設值
   if [[ -z "$value" ]]; then

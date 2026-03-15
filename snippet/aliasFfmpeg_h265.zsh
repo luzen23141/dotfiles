@@ -1,103 +1,8 @@
 # ============================================
-# H.265 轉換相關輔助函數
+# H.265 轉換相關輔助函式
 # ============================================
+source "$DOTFILES/snippet/ffmpegHelper.zsh"
 
-# 格式化檔案大小
-_h265_format_size() {
-  local size=$1
-  if command -v numfmt &> /dev/null; then
-    numfmt --to=iec-i --suffix=B "$size" 2>/dev/null || echo "${size}B"
-  else
-    if [ "$size" -gt 1073741824 ]; then
-      local result
-      result=$(echo "scale=2; $size / 1073741824" | bc)
-      echo "${result}GB"
-    elif [ "$size" -gt 1048576 ]; then
-      local result
-      result=$(echo "scale=2; $size / 1048576" | bc)
-      echo "${result}MB"
-    elif [ "$size" -gt 1024 ]; then
-      local result
-      result=$(echo "scale=2; $size / 1024" | bc)
-      echo "${result}KB"
-    else
-      echo "${size}B"
-    fi
-  fi
-}
-
-# 顯示錯誤訊息並返回
-_h265_error() {
-  echo ""
-  echo "❌ 錯誤：$1"
-  [ -n "$2" ] && echo "   $2"
-  echo ""
-  return 1
-}
-
-# 顯示警告訊息
-_h265_warn() {
-  echo "⚠️  警告：$1"
-  [ -n "$2" ] && echo "   $2"
-}
-
-# 檢查必要命令是否存在
-_h265_check_dependencies() {
-  local missing_cmds=()
-  
-  command -v ffmpeg &> /dev/null || missing_cmds+=("ffmpeg")
-  command -v ffprobe &> /dev/null || missing_cmds+=("ffprobe")
-  command -v bc &> /dev/null || missing_cmds+=("bc")
-  
-  if [ ${#missing_cmds[@]} -gt 0 ]; then
-    echo ""
-    echo "❌ 錯誤：缺少必要的命令"
-    echo ""
-    for cmd in "${missing_cmds[@]}"; do
-      echo "   • $cmd"
-    done
-    echo ""
-    echo "💡 安裝方法："
-    echo "   brew install ffmpeg bc"
-    echo ""
-    return 1
-  fi
-  return 0
-}
-
-# 計算兩個影片的 SSIM 和 PSNR
-_h265_calculate_quality() {
-  # 強制禁用調試輸出
-  set +x
-  {
-    setopt localoptions 2>/dev/null
-    unsetopt xtrace verbose 2>/dev/null
-  } 2>/dev/null
-  
-  local reference="$1"
-  local comparison="$2"
-  
-  # 建立臨時檔案儲存 ffmpeg 輸出
-  local temp_output
-  temp_output=$(mktemp)
-  
-  # 執行 ffmpeg 並捕獲輸出（隱藏進度信息）
-  ffmpeg -hide_banner -loglevel info -i "$reference" -i "$comparison" -lavfi "[0:v]setpts=PTS-STARTPTS[v0];[1:v]setpts=PTS-STARTPTS[v1];[v0][v1]ssim;[0:v]setpts=PTS-STARTPTS[v0];[1:v]setpts=PTS-STARTPTS[v1];[v0][v1]psnr" -f null - > "$temp_output" 2>&1
-  
-  # 提取 SSIM 平均值
-  local ssim_avg
-  ssim_avg=$(grep "SSIM" "$temp_output" | grep "All:" | tail -1 | sed -n 's/.*All:\([0-9.]*\).*/\1/p')
-  
-  # 提取 PSNR 平均值
-  local psnr_avg
-  psnr_avg=$(grep "PSNR" "$temp_output" | grep "average:" | tail -1 | sed -n 's/.*average:\([0-9.]*\).*/\1/p')
-  
-  # 清理臨時檔案（command rm 刻意繞過 trash alias）
-  command rm -f "$temp_output"
-  
-  # 返回結果（用空格分隔）
-  echo "${ssim_avg:-0} ${psnr_avg:-0}"
-}
 
 function toH265() {
   # 強制禁用調試輸出
@@ -161,7 +66,7 @@ function toH265() {
   shift
   
   # 檢查必要的命令
-  _h265_check_dependencies || return 1
+  _ffmpeg_check_dependencies || return 1
   
   # 全局變數
   local maxrate crf speed use_hw_accel preset dry_run start_time end_time
@@ -186,20 +91,7 @@ function toH265() {
           echo ""
           return 1
         fi
-        if ! [[ "$2" =~ ^[0-9]+\.?[0-9]*$ ]]; then
-          echo ""
-          echo "❌ 錯誤：速度倍率必須是正數，收到: $2"
-          echo ""
-          return 1
-        fi
-        # 檢查速度範圍 (ffmpeg atempo 限制: 0.5-100.0)
-        if (( $(echo "$2 < 0.5 || $2 > 100.0" | bc -l) )); then
-          echo ""
-          echo "❌ 錯誤：速度倍率必須在 0.5-100.0 之間，收到: $2"
-          echo "   (ffmpeg atempo 濾鏡限制)"
-          echo ""
-          return 1
-        fi
+        _ffmpeg_validate_speed "$2" || return 1
         speed="$2"
         shift 2
         ;;
@@ -299,7 +191,7 @@ function toH265() {
   # 驗證參數組合
   if [ "$use_hw_accel" = true ]; then
     if [ -n "$crf" ] || [ "$preset" != "slow" ]; then
-      _h265_warn "硬體加速模式會忽略 -c (CRF) 和 -p (preset) 參數"
+      _ffmpeg_warn "硬體加速模式會忽略 -c (CRF) 和 -p (preset) 參數"
     fi
   fi
   
@@ -613,24 +505,22 @@ function toH265() {
     fi
     
     # 顯示檔案大小比較
-    if command -v stat &> /dev/null; then
-      local input_size
-      local output_size
-      input_size=$(stat -f%z "$input_file" 2>/dev/null || stat -c%s "$input_file" 2>/dev/null)
-      output_size=$(stat -f%z "$output_file" 2>/dev/null || stat -c%s "$output_file" 2>/dev/null)
+    local input_size
+    local output_size
+    input_size=$(stat -f%z "$input_file" 2>/dev/null)
+    output_size=$(stat -f%z "$output_file" 2>/dev/null)
+    
+    if [ -n "$input_size" ] && [ -n "$output_size" ] && [ "$input_size" -gt 0 ]; then
+      local size_ratio
+      local input_size_fmt
+      local output_size_fmt
+      size_ratio="$(echo "scale=2; $output_size * 100 / $input_size" | bc)"
+      input_size_fmt=$(_ffmpeg_format_size "$input_size")
+      output_size_fmt=$(_ffmpeg_format_size "$output_size")
       
-      if [ -n "$input_size" ] && [ -n "$output_size" ] && [ "$input_size" -gt 0 ]; then
-        local size_ratio
-        local input_size_fmt
-        local output_size_fmt
-        size_ratio="$(echo "scale=2; $output_size * 100 / $input_size" | bc)"
-        input_size_fmt=$(_h265_format_size "$input_size")
-        output_size_fmt=$(_h265_format_size "$output_size")
-        
-        echo "📊 檔案大小: $input_size_fmt → $output_size_fmt (${size_ratio}%)"
-      else
-        echo "⚠️  無法取得檔案大小資訊"
-      fi
+      echo "📊 檔案大小: $input_size_fmt → $output_size_fmt (${size_ratio}%)"
+    else
+      echo "⚠️  無法取得檔案大小資訊"
     fi
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
@@ -669,7 +559,7 @@ function toH265Test() {
   trap 'echo ""; echo ""; echo "⚠️  測試已中斷"; kill -INT $$' INT TERM
   
   # 檢查依賴
-  _h265_check_dependencies || return 1
+  _ffmpeg_check_dependencies || return 1
   
   if [ -z "$1" ] || [ -z "$2" ] || [ -z "$3" ]; then
     echo ""
@@ -833,12 +723,11 @@ function toH265Test() {
       test_end=$(date +%s)
       local test_duration=$((test_end - test_start))
       
-      if command -v stat &> /dev/null; then
         local file_size
-        file_size=$(stat -f%z "$orig_output" 2>/dev/null || stat -c%s "$orig_output" 2>/dev/null)
+        file_size=$(stat -f%z "$orig_output" 2>/dev/null)
         if [ -n "$file_size" ]; then
           local size_fmt
-          size_fmt=$(_h265_format_size "$file_size")
+          size_fmt=$(_ffmpeg_format_size "$file_size")
           echo "✅ 完成 - 大小: $size_fmt, 時間: ${test_duration}s"
           
           # 收集測試結果（原始裁切沒有 SSIM/PSNR）
@@ -848,7 +737,6 @@ function toH265Test() {
           test_results_ssim+=("1.000")
           test_results_psnr+=("∞")
         fi
-      fi
     else
       echo "❌ 裁切失敗"
       fail_count=$((fail_count + 1))
@@ -890,61 +778,59 @@ function toH265Test() {
           local test_duration=$((test_end - test_start))
           
           # 顯示檔案大小和時間
-          if command -v stat &> /dev/null; then
-            local file_size
-            file_size=$(stat -f%z "$default_output" 2>/dev/null || stat -c%s "$default_output" 2>/dev/null)
-            if [ -n "$file_size" ]; then
-              local size_fmt
-              size_fmt=$(_h265_format_size "$file_size")
+          local file_size
+          file_size=$(stat -f%z "$default_output" 2>/dev/null)
+          if [ -n "$file_size" ]; then
+            local size_fmt
+            size_fmt=$(_ffmpeg_format_size "$file_size")
+            
+            # 如果沒有參考檔案且這是第一個測試（CRF22 + medium），設為參考
+            if [ -z "$reference_file" ] && [ "$crf" = "22" ] && [ "$preset" = "medium" ]; then
+              # 先保存檔案，稍後設為參考
+              local new_name="test_sw_crf${crf}_${preset}_${test_duration}s.mp4"
+              output_name="${test_dir}/${new_name}"
+              mv "$default_output" "$output_name"
+              reference_file="$output_name"
               
-              # 如果沒有參考檔案且這是第一個測試（CRF22 + medium），設為參考
-              if [ -z "$reference_file" ] && [ "$crf" = "22" ] && [ "$preset" = "medium" ]; then
-                # 先保存檔案，稍後設為參考
-                local new_name="test_sw_crf${crf}_${preset}_${test_duration}s.mp4"
-                output_name="${test_dir}/${new_name}"
-                mv "$default_output" "$output_name"
-                reference_file="$output_name"
-                
-                echo "✅ 完成 - 大小: $size_fmt, 時間: ${test_duration}s"
-                echo "   📌 設為品質基準"
-                
-                # 收集測試結果（第一個沒有 SSIM/PSNR）
-                test_results_name+=("CRF${crf}_${preset}")
-                test_results_size+=("$file_size")
-                test_results_time+=("$test_duration")
-                test_results_ssim+=("-")
-                test_results_psnr+=("-")
-              else
-                # 計算品質指標
-                local ssim_val="-" psnr_val="-"
-                if [ -n "$reference_file" ] && [ -f "$reference_file" ]; then
-                  echo "   📊 正在計算品質指標..."
-                  local quality_result
-                  quality_result=$(_h265_calculate_quality "$reference_file" "$default_output")
-                  ssim_val=$(echo "$quality_result" | awk '{print $1}')
-                  psnr_val=$(echo "$quality_result" | awk '{print $2}')
-                fi
-                
-                # 重命名檔案，包含 SSIM/PSNR/時間
-                local new_name="test_sw_crf${crf}_${preset}"
-                if [ "$ssim_val" != "-" ]; then
-                  new_name="${new_name}_ssim${ssim_val}_psnr${psnr_val}dB_${test_duration}s.mp4"
-                else
-                  new_name="${new_name}_${test_duration}s.mp4"
-                fi
-                output_name="${test_dir}/${new_name}"
-                mv "$default_output" "$output_name"
-                
-                echo "✅ 完成 - 大小: $size_fmt, 時間: ${test_duration}s"
-                [ "$ssim_val" != "-" ] && echo "   📈 SSIM: $ssim_val, PSNR: ${psnr_val}dB"
-                
-                # 收集測試結果
-                test_results_name+=("CRF${crf}_${preset}")
-                test_results_size+=("$file_size")
-                test_results_time+=("$test_duration")
-                test_results_ssim+=("$ssim_val")
-                test_results_psnr+=("$psnr_val")
+              echo "✅ 完成 - 大小: $size_fmt, 時間: ${test_duration}s"
+              echo "   📌 設為品質基準"
+              
+              # 收集測試結果（第一個沒有 SSIM/PSNR）
+              test_results_name+=("CRF${crf}_${preset}")
+              test_results_size+=("$file_size")
+              test_results_time+=("$test_duration")
+              test_results_ssim+=("-")
+              test_results_psnr+=("-")
+            else
+              # 計算品質指標
+              local ssim_val="-" psnr_val="-"
+              if [ -n "$reference_file" ] && [ -f "$reference_file" ]; then
+                echo "   📊 正在計算品質指標..."
+                local quality_result
+                quality_result=$(_ffmpeg_calculate_quality "$reference_file" "$default_output")
+                ssim_val=$(echo "$quality_result" | awk '{print $1}')
+                psnr_val=$(echo "$quality_result" | awk '{print $2}')
               fi
+              
+              # 重命名檔案，包含 SSIM/PSNR/時間
+              local new_name="test_sw_crf${crf}_${preset}"
+              if [ "$ssim_val" != "-" ]; then
+                new_name="${new_name}_ssim${ssim_val}_psnr${psnr_val}dB_${test_duration}s.mp4"
+              else
+                new_name="${new_name}_${test_duration}s.mp4"
+              fi
+              output_name="${test_dir}/${new_name}"
+              mv "$default_output" "$output_name"
+              
+              echo "✅ 完成 - 大小: $size_fmt, 時間: ${test_duration}s"
+              [ "$ssim_val" != "-" ] && echo "   📈 SSIM: $ssim_val, PSNR: ${psnr_val}dB"
+             
+              # 收集測試結果
+              test_results_name+=("CRF${crf}_${preset}")
+              test_results_size+=("$file_size")
+              test_results_time+=("$test_duration")
+              test_results_ssim+=("$ssim_val")
+              test_results_psnr+=("$psnr_val")
             fi
           fi
         else
@@ -985,43 +871,41 @@ function toH265Test() {
       test_end=$(date +%s)
       local test_duration=$((test_end - test_start))
       
-      if command -v stat &> /dev/null; then
-        local file_size
-        file_size=$(stat -f%z "$default_output" 2>/dev/null || stat -c%s "$default_output" 2>/dev/null)
-        if [ -n "$file_size" ]; then
-          local size_fmt
-          size_fmt=$(_h265_format_size "$file_size")
-          
-          # 計算品質指標
-          local ssim_val="-" psnr_val="-"
-          if [ -n "$reference_file" ] && [ -f "$reference_file" ]; then
-            echo "   📊 正在計算品質指標..."
-            local quality_result
-            quality_result=$(_h265_calculate_quality "$reference_file" "$default_output")
-            ssim_val=$(echo "$quality_result" | awk '{print $1}')
-            psnr_val=$(echo "$quality_result" | awk '{print $2}')
-          fi
-          
-          # 重命名檔案，包含 SSIM/PSNR/時間
-          local new_name="test_hw"
-          if [ "$ssim_val" != "-" ]; then
-            new_name="${new_name}_ssim${ssim_val}_psnr${psnr_val}dB_${test_duration}s.mp4"
-          else
-            new_name="${new_name}_${test_duration}s.mp4"
-          fi
-          output_name="${test_dir}/${new_name}"
-          mv "$default_output" "$output_name"
-          
-          echo "✅ 完成 - 大小: $size_fmt, 時間: ${test_duration}s"
-          [ "$ssim_val" != "-" ] && echo "   📈 SSIM: $ssim_val, PSNR: ${psnr_val}dB"
-          
-          # 收集測試結果
-          test_results_name+=("HW_accel")
-          test_results_size+=("$file_size")
-          test_results_time+=("$test_duration")
-          test_results_ssim+=("$ssim_val")
-          test_results_psnr+=("$psnr_val")
+      local file_size
+      file_size=$(stat -f%z "$default_output" 2>/dev/null)
+      if [ -n "$file_size" ]; then
+        local size_fmt
+        size_fmt=$(_ffmpeg_format_size "$file_size")
+        
+        # 計算品質指標
+        local ssim_val="-" psnr_val="-"
+        if [ -n "$reference_file" ] && [ -f "$reference_file" ]; then
+          echo "   📊 正在計算品質指標..."
+          local quality_result
+          quality_result=$(_ffmpeg_calculate_quality "$reference_file" "$default_output")
+          ssim_val=$(echo "$quality_result" | awk '{print $1}')
+          psnr_val=$(echo "$quality_result" | awk '{print $2}')
         fi
+        
+        # 重命名檔案，包含 SSIM/PSNR/時間
+        local new_name="test_hw"
+        if [ "$ssim_val" != "-" ]; then
+          new_name="${new_name}_ssim${ssim_val}_psnr${psnr_val}dB_${test_duration}s.mp4"
+        else
+          new_name="${new_name}_${test_duration}s.mp4"
+        fi
+        output_name="${test_dir}/${new_name}"
+        mv "$default_output" "$output_name"
+        
+        echo "✅ 完成 - 大小: $size_fmt, 時間: ${test_duration}s"
+        [ "$ssim_val" != "-" ] && echo "   📈 SSIM: $ssim_val, PSNR: ${psnr_val}dB"
+        
+        # 收集測試結果
+        test_results_name+=("HW_accel")
+        test_results_size+=("$file_size")
+        test_results_time+=("$test_duration")
+        test_results_ssim+=("$ssim_val")
+        test_results_psnr+=("$psnr_val")
       fi
     else
       fail_count=$((fail_count + 1))
@@ -1088,7 +972,7 @@ function toH265Test() {
       local ssim="${test_results_ssim[$i]}"
       local psnr="${test_results_psnr[$i]}"
       local size_fmt
-      size_fmt=$(_h265_format_size "$size")
+      size_fmt=$(_ffmpeg_format_size "$size")
       
       # 格式化時間顯示
       local time_fmt=""

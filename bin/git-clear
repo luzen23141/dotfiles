@@ -11,7 +11,7 @@ if [[ $# -gt 0 && ($1 == "branch" || $1 == "b") ]]; then
     else
       echo "預計刪除以下本地分支："
       echo "$branches"
-      git branch | grep -v '\*' | xargs git branch -D
+      git branch | grep -v '\*' | while IFS= read -r branch; do git branch -D "$branch"; done
     fi
   fi
 elif  [[ $# -gt 0 && ($1 == "cache" || $1 == "c") ]]; then
@@ -46,5 +46,5 @@ elif  [[ $# -gt 0 && ($1 == "cache" || $1 == "c") ]]; then
   size=$(du -sh .git | awk '{print $1}')
   printf "\n清理後 .git 目錄大小為：%s\n" "$size"
 else
-  echo '目前只有 git clear branch'
+  echo '用法: git clear branch [分支名] 或 git clear cache'
 fi

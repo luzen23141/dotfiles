@@ -14,8 +14,8 @@ set_current_branch=("a" "m")
 
 # 確保 ENV_FILE 存在
 ensure_env_exists() {
-  if [[ ! -f $ENV_FILE ]]; then
-    touch $ENV_FILE
+  if [[ ! -f "$ENV_FILE" ]]; then
+    touch "$ENV_FILE"
   fi
 }
 
@@ -82,7 +82,7 @@ set_env_value() {
 # 列出 ENV_FILE 中所有 key-value
 list_env_values() {
   ensure_env_exists
-  cat "$ENV_FILE"
+  command cat "$ENV_FILE"
 }
 
 # 使用範例：

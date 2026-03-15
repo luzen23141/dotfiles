@@ -1,8 +1,7 @@
 #! /bin/zsh
 
-source "$HOME/.zshrc"
+export DOTFILES="${DOTFILES:-$HOME/dotfiles}"
 echo "Backing up your dotfiles..."
 
-cd "$DOTFILES" || (echo "Path Error" && exit)
-pwd
+cd "$DOTFILES" || { echo "Path Error"; exit 1; }
 brew bundle dump --describe --force --file="$DOTFILES"/Brewfile

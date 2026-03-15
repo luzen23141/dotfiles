@@ -1,11 +1,14 @@
+# 歷史記錄時間格式
+HIST_STAMPS="%Y-%m-%d %H:%M:%S"
+
 # 歷史記錄包裝函數
 function history {
   if [[ $# -eq 0 ]]; then
     # 無參數：從第 1 筆開始顯示完整歷史
-    builtin fc -t '$HIST_STAMPS' -l 1
+    builtin fc -t "$HIST_STAMPS" -l 1
   else
     # 有參數：以自訂格式執行 fc -l
-    builtin fc -t '$HIST_STAMPS' -l "$@"
+    builtin fc -t "$HIST_STAMPS" -l "$@"
   fi
 }
 
