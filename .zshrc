@@ -162,3 +162,17 @@ zinit wait'2' lucid depth"1" light-mode for \
   paulirish/git-open
 
 # export OPENCODE_DISABLE_CLAUDE_CODE=1  # 停用 opencode 內建的 claude code 整合（衝突時啟用）
+# bun completions
+[ -s "/opt/homebrew/Cellar/bun/1.3.13/share/zsh/site-functions/_bun" ] && source "/opt/homebrew/Cellar/bun/1.3.13/share/zsh/site-functions/_bun"
+
+eval "$(/opt/homebrew/bin/brew shellenv)"
+# Added by Toolbox App
+export PATH="$PATH:/Users/alex/Library/Application Support/JetBrains/Toolbox/scripts"
+
+# pnpm
+export PNPM_HOME="/Users/alex/.data/pnpm"
+case ":$PATH:" in
+  *":$PNPM_HOME/bin:"*) ;;
+  *) export PATH="$PNPM_HOME/bin:$PATH" ;;
+esac
+# pnpm end
