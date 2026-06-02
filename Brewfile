@@ -1,7 +1,7 @@
 tap "luzen23141/taps"
+tap "oven-sh/bun"
+tap "shivammathur/extensions"
 tap "shivammathur/php"
-# Fast and opinionated formatter for R code
-brew "air"
 # Clone of cat(1) with syntax highlighting and Git integration
 brew "bat"
 # Remove large files or passwords from Git history like git-filter-branch
@@ -14,7 +14,7 @@ brew "php"
 brew "composer"
 # Modern, maintained replacement for ls
 brew "eza"
-# Play, record, convert, and stream audio and video
+# Play, record, convert, and stream select audio and video codecs
 brew "ffmpeg"
 # Command-line fuzzy finder written in Go
 brew "fzf"
@@ -24,34 +24,46 @@ brew "node"
 brew "gemini-cli"
 # Distributed revision control system
 brew "git"
+# Render markdown on the CLI
+brew "glow"
 # Open source programming language to build simple/reliable/efficient software
 brew "go"
 # Fast linters runner for Go
 brew "golangci-lint"
 # Next generation open source RPC library and framework
 brew "grpc"
+# Update binaries installed by go install
+brew "gup"
 # Improved top (interactive process viewer)
 brew "htop"
 # Configurable static site generator
 brew "hugo"
-# Tools and libraries to manipulate images in many formats
+# Tools and libraries to manipulate images in select formats
 brew "imagemagick"
 # Lightweight and flexible command-line JSON processor
 brew "jq"
 # Powerful, lightweight programming language
 brew "lua"
+# Deep clean and optimize your Mac
+brew "mole"
 # Open source relational database management system
 brew "mysql"
 # Simplified-traditional Chinese conversion tool
 brew "opencc"
 # Execute binaries from Python packages in isolated environments
 brew "pipx"
+# Fast, disk space efficient package manager
+brew "pnpm"
+# Rsync for cloud storage
+brew "rclone"
 # Persistent key-value database, with built-in net interface
 brew "redis"
 # Perl-powered file rename script with many helpful built-ins
 brew "rename"
 # Utility that provides fast incremental file transfer
 brew "rsync"
+# CLI proxy to minimize LLM token consumption
+brew "rtk"
 # User interface to the TELNET protocol
 brew "telnet"
 # CLI tool that moves files or folder to the trash
@@ -62,30 +74,32 @@ brew "tree"
 brew "unar"
 # Compress/expand executable files
 brew "upx"
+# Extremely fast Python package installer and resolver, written in Rust
+brew "uv"
 # Internet file retriever
 brew "wget"
-# General-purpose scripting language
-brew "shivammathur/php/php@7.3"
-# General-purpose scripting language
-brew "shivammathur/php/php@7.4"
-# General-purpose scripting language
-brew "shivammathur/php/php@8.0"
-# General-purpose scripting language
-brew "shivammathur/php/php@8.1"
-# General-purpose scripting language
-brew "shivammathur/php/php@8.3"
+# Incredibly fast JavaScript runtime, bundler, transpiler and package manager - all in one.
+brew "oven-sh/bun/bun"
 # Password manager that keeps all passwords secure behind one password
 cask "1password"
 # Menu bar tool to limit maximum charging percentage
 cask "aldente"
 # Platform for API documentation, debugging, Mock and testing
 cask "apipost"
+# Anthropic's official Claude AI desktop app
+cask "claude"
+# Terminal-based AI coding assistant
+cask "claude-code"
+# Screen capturing tool
+cask "cleanshot"
 cask "font-hack-nerd-font"
-# Web browser
-cask "google-chrome"
 # Set of tools to manage resources and applications hosted on Google Cloud
 cask "gcloud-cli"
-# Terminal emulator as alternative to Apple's Terminal app
+# Terminal emulator that uses platform-native UI and GPU acceleration
+cask "ghostty"
+# Web browser
+cask "google-chrome"
+# JetBrains tools manager
 cask "jetbrains-toolbox"
 # Tool to prevent the system from going into sleep mode
 cask "keepingyouawake"
@@ -93,6 +107,8 @@ cask "keepingyouawake"
 cask "logi-options+"
 # Clipboard manager
 cask "maccy"
+# File system integration
+cask "macfuse"
 # Meet, chat, call, and collaborate in just one place
 cask "microsoft-teams"
 # Reverse proxy, secure introspectable tunnels to localhost
@@ -107,9 +123,7 @@ cask "orbstack"
 cask "postman"
 # Control your tools with a few keystrokes
 cask "raycast"
-# Move and resize windows using keyboard shortcuts or snap areas
-cask "rectangle"
-# Collection of apps available by subscription
+# System monitor for the menu bar
 cask "stats"
 # Video game digital distribution service
 cask "steam"
@@ -119,7 +133,9 @@ cask "sublime-text"
 cask "surfshark"
 # Desktop client for Telegram messenger
 cask "telegram-desktop"
+# Menu bar manager
+cask "thaw"
 # Web browser with built-in email client focusing on customization and control
 cask "vivaldi"
-# Go packages
-go "github.com/xuri/xgen/cmd/xgen"
+# Multiplayer code editor
+cask "zed"

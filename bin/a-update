@@ -43,6 +43,7 @@ SUMMARY_PRINTED=0
 INTERRUPTED=0
 TOTAL_STEPS=0
 COMPLETED_STEPS=0
+STARTED_STEPS=0
 CURRENT_STEP_ID=""
 CURRENT_STEP_STARTED=0
 
@@ -69,7 +70,7 @@ typeset -A STEP_LABELS STEP_STATUS STEP_DURATION STEP_MESSAGE STEP_LOG STEP_PID 
 
 progress_prefix() {
   if (( TOTAL_STEPS > 0 )); then
-    print -r -- "[$((COMPLETED_STEPS + 1))/$TOTAL_STEPS]"
+    print -r -- "[$STARTED_STEPS/$TOTAL_STEPS]"
   else
     print -r -- "[--/--]"
   fi
@@ -110,6 +111,7 @@ register_step() {
   STEP_DURATION[$id]="0s"
   STEP_MESSAGE[$id]="未執行"
   STEP_LOG[$id]="$TMP_DIR/${id}.log"
+  STARTED_STEPS=$((STARTED_STEPS + 1))
 }
 
 record_step() {
@@ -407,6 +409,20 @@ step_brew_cleanup()      { brew_step cleanup --prune=all; }
 step_brew_doctor()       { brew_step doctor; }
 step_brew_upgrade_cask() { brew_step upgrade --cask --greedy; }
 
+# 將目前已安裝的 formula/cask/tap/mas 等狀態快照寫回 Brewfile，方便 git diff 追蹤。
+step_brew_bundle_dump() {
+  [[ -n "$BREW_BIN" ]] || step_warn "略過：未安裝 Homebrew"
+
+  local brewfile="$DOTFILES/Brewfile"
+  "$BREW_BIN" bundle dump --force --describe --file="$brewfile" || return $?
+
+  if command -v git >/dev/null 2>&1 && git -C "$DOTFILES" diff --quiet -- Brewfile 2>/dev/null; then
+    typeset -g STEP_NOTE="Brewfile 無變動"
+  else
+    typeset -g STEP_NOTE="已更新 $brewfile"
+  fi
+}
+
 # 通用：印出更新清單，items 為已整理好的多行字串
 print_updated_list() {
   local label="$1"
@@ -547,21 +563,16 @@ step_update_go_global_tools() {
   gup update
 }
 
+# 暫時關閉 gup 更新時，註解 run_main_update() 內的 gup_step 呼叫即可。
+# 此 wrapper 同時負責 TOTAL_STEPS 計數，恢復時無需手動調整。
+gup_step() {
+  ((TOTAL_STEPS++))
+  run_bg_step "go_globals" "gup update" step_update_go_global_tools
+}
+
 step_update_bun() {
   require_cmd bun
   bun upgrade
-}
-
-# gem 第一階段：更新 RubyGems 本體
-step_gem_system_update() {
-  require_cmd gem
-  gem update --system
-}
-
-# gem 第二階段：更新所有已安裝的 gem
-step_gem_update() {
-  require_cmd gem
-  gem update
 }
 
 # npm：不更新，僅檢查是否有全域套件並建議遷移至 pnpm
@@ -611,24 +622,23 @@ step_pipx_check() {
 
 # au：brew 主鏈前景執行，其餘可獨立的更新背景並行。
 run_main_update() {
-  TOTAL_STEPS=16
+  TOTAL_STEPS=13
 
   # 第一階段：獨立更新背景並行
-  run_bg_step "zinit_update"   "zinit update"        step_zinit_update
-  run_bg_step "uv_tools"       "uv tools"            step_update_uv_tools
-  run_bg_step "pnpm_globals"   "pnpm 全域套件"       step_update_pnpm_global_tools
-  run_bg_step "go_globals"     "Go 全域工具"         step_update_go_global_tools
-  run_bg_step "bun_upgrade"    "bun upgrade"         step_update_bun
-  run_bg_step "gem_system"     "gem update --system" step_gem_system_update
-  run_bg_step "npm_check"      "npm 全域套件檢查"    step_npm_check
-  run_bg_step "pipx_check"     "pipx 工具檢查"       step_pipx_check
+  run_bg_step "zinit_update"   "zinit update --all --parallel 16"  step_zinit_update
+  run_bg_step "uv_tools"       "uv tool upgrade --all"             step_update_uv_tools
+  run_bg_step "pnpm_globals"   "pnpm up -g"                        step_update_pnpm_global_tools
+  # gup_step  # 暫時關閉 gup 更新；取消註解即可恢復（含 TOTAL_STEPS 計數）
+  run_bg_step "bun_upgrade"    "bun upgrade"                       step_update_bun
+  run_bg_step "npm_check"      "npm 全域套件檢查 (npm list -g)"    step_npm_check
+  run_bg_step "pipx_check"     "pipx 工具檢查 (pipx list)"         step_pipx_check
 
   # brew 主鏈：update → upgrade → autoremove → cleanup → doctor
   if run_step "brew_update" "brew update" step_brew_update; then
     if run_step "brew_upgrade" "brew upgrade" step_brew_upgrade; then
       print_brew_upgraded "${STEP_LOG[brew_upgrade]}"
       run_step "brew_autoremove" "brew autoremove" step_brew_autoremove
-      run_step "brew_cleanup" "brew cleanup" step_brew_cleanup
+      run_step "brew_cleanup" "brew cleanup --prune=all" step_brew_cleanup
       run_step "brew_doctor" "brew doctor" step_brew_doctor
     else
       skip_many "略過：brew upgrade 失敗" \
@@ -653,37 +663,18 @@ run_main_update() {
   [[ "${STEP_STATUS[go_globals]}"   == "OK" ]] && print_gup_upgraded   "${STEP_LOG[go_globals]}"
   [[ "${STEP_STATUS[zinit_update]}" == "OK" ]] && print_zinit_upgraded "${STEP_LOG[zinit_update]}"
 
-  # 第二階段：依賴第一階段結果，彼此獨立可平行
-  local has_phase2=0
+  # 第二階段：依賴第一階段結果
   if [[ "${STEP_STATUS[zinit_update]}" == "OK" ]]; then
     run_bg_step "zinit_self_update" "zinit self-update" step_zinit_self_update
-    has_phase2=1
+    BG_STEP_IDS=(zinit_self_update)
+    BG_PIDS=("${STEP_PID[zinit_self_update]}")
+    collect_bg_steps
   else
     skip_step "zinit_self_update" "zinit self-update" "略過：zinit update 未成功"
   fi
 
-  if [[ "${STEP_STATUS[gem_system]}" == "OK" ]]; then
-    run_bg_step "gem_update" "gem update" step_gem_update
-    has_phase2=1
-  else
-    skip_step "gem_update" "gem update" "略過：gem update --system 未成功"
-  fi
-
-  # 收斂第二階段
-  if (( has_phase2 )); then
-    # 重設 bg 陣列只保留第二階段的 step（第一階段已 collect 完畢）
-    local -a phase2_ids=() phase2_pids=()
-    local step_id
-    for step_id in zinit_self_update gem_update; do
-      if [[ -n "${STEP_PID[$step_id]}" && "${STEP_MESSAGE[$step_id]}" == "未執行" ]]; then
-        phase2_ids+=("$step_id")
-        phase2_pids+=("${STEP_PID[$step_id]}")
-      fi
-    done
-    BG_STEP_IDS=("${phase2_ids[@]}")
-    BG_PIDS=("${phase2_pids[@]}")
-    collect_bg_steps
-  fi
+  # 第三階段：把目前環境寫回 Brewfile，作為快照供 git 追蹤。
+  run_step "brew_bundle_dump" "brew bundle dump → Brewfile" step_brew_bundle_dump
 }
 
 # auc：只保留 cask 更新鏈，維持 brew update -> cask upgrade 的順序。
@@ -702,7 +693,7 @@ run_cask_update() {
 usage() {
   print -r -- "用法：a-update [cask]"
   print -r -- ""
-  print -r -- "  (無參數)  執行完整系統更新（brew, zinit, uv, pnpm, go, bun, gem）"
+  print -r -- "  (無參數)  執行完整系統更新（brew, zinit, uv, pnpm, go, bun）"
   print -r -- "  cask      僅更新 Homebrew cask 應用程式"
   print -r -- ""
   print -r -- "通常透過 alias 使用："
