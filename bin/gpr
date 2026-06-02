@@ -1,6 +1,6 @@
 #! /bin/zsh
 
-source "$DOTFILES"/helperFunc/configHelper
+source "$DOTFILES"/helperFunc/envHelper
 
 # 定義關聯陣列：特定 remote URL 對應的主分支名稱
 typeset -A main_branch_map
@@ -16,5 +16,5 @@ if [[ -n ${main_branch_map[$remote_url]} ]]; then
 fi
 
 local main_branch
-main_branch="$(getAConfig main_branch "$default_main_branch")"
+main_branch="$(get_env_value main_branch "$default_main_branch")"
 git open origin "$main_branch" --suffix compare/"$main_branch"..."$(git rev-parse --abbrev-ref HEAD)"

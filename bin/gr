@@ -1,8 +1,8 @@
 #! /bin/zsh
 
-source "$DOTFILES"/helperFunc/configHelper
+source "$DOTFILES"/helperFunc/envHelper
 
-config_value="$(getAConfig go_run_default "")"
+config_value="$(get_env_value go_run_default "")"
 
 if [ -n "$config_value" ]; then
   cmd_parts=("${(@z)config_value}")

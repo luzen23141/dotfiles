@@ -1,4 +1,4 @@
 #! /bin/zsh
 
-source "$DOTFILES"/helperFunc/configHelper
-git checkout "$(getAConfig dev_branch dev)" "$@"
+source "$DOTFILES"/helperFunc/envHelper
+git checkout "$(get_env_value dev_branch dev)" "$@"

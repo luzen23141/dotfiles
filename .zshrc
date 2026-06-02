@@ -58,6 +58,7 @@ export NPM_CONFIG_PREFIX="$XDG_DATA_HOME/npm"
 export PNPM_HOME="$XDG_DATA_HOME/pnpm"
 typeset -U path PATH
 path=(
+  "$PNPM_HOME/bin"
   "$PNPM_HOME"
   "$HOME/.antigravity/antigravity/bin"
   "/opt/homebrew/opt/curl/bin"
@@ -155,24 +156,19 @@ zinit wait'1' lucid depth"1" light-mode for \
   OMZP::safe-paste \
   OMZP::colored-man-pages \
   OMZP::sudo
-#   OMZL::git.zsh  # 移除原因：與自訂 git alias 衝突；觀察中，確認無副作用後可刪除此行
 
 # zinit 設定：較少使用工具（延遲載入）
 zinit wait'2' lucid depth"1" light-mode for \
   paulirish/git-open
 
 # export OPENCODE_DISABLE_CLAUDE_CODE=1  # 停用 opencode 內建的 claude code 整合（衝突時啟用）
-# bun completions
-[ -s "/opt/homebrew/Cellar/bun/1.3.13/share/zsh/site-functions/_bun" ] && source "/opt/homebrew/Cellar/bun/1.3.13/share/zsh/site-functions/_bun"
 
-eval "$(/opt/homebrew/bin/brew shellenv)"
-# Added by Toolbox App
-export PATH="$PATH:/Users/alex/Library/Application Support/JetBrains/Toolbox/scripts"
+# bun completions（用 glob 避免寫死版本號與 fork brew）
+for _bun_completion in /opt/homebrew/Cellar/bun/*/share/zsh/site-functions/_bun(N); do
+  source "$_bun_completion"
+  break
+done
+unset _bun_completion
 
-# pnpm
-export PNPM_HOME="/Users/alex/.data/pnpm"
-case ":$PATH:" in
-  *":$PNPM_HOME/bin:"*) ;;
-  *) export PATH="$PNPM_HOME/bin:$PATH" ;;
-esac
-# pnpm end
+# JetBrains Toolbox
+export PATH="$PATH:$HOME/Library/Application Support/JetBrains/Toolbox/scripts"

@@ -1,4 +1,4 @@
 #! /bin/zsh
 
-source "$DOTFILES"/helperFunc/configHelper
-git rebase origin/"$(getAConfig main_branch master)"
+source "$DOTFILES"/helperFunc/envHelper
+git rebase origin/"$(get_env_value main_branch master)"

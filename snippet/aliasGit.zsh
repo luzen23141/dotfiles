@@ -14,8 +14,8 @@ alias gai="command cat ~/.config/.gitignore_global >> .git/info/exclude && cat .
 
 # 開啟 PR 頁面（讀取 .aConfig main_branch，預設 master）
 function gito() {
-  source "$DOTFILES"/helperFunc/configHelper
-  git open origin "$(getAConfig main_branch master)"
+  source "$DOTFILES"/helperFunc/envHelper
+  git open origin "$(get_env_value main_branch master)"
 }
 alias grh="git reset HEAD^"
 alias gba="git branch -a"
@@ -29,14 +29,14 @@ function ga() {
 }
 
 function gma() {
-  source "$DOTFILES"/helperFunc/configHelper
+  source "$DOTFILES"/helperFunc/envHelper
   local mine_branch
-  mine_branch="$(getAConfig mine_branch alex)"
+  mine_branch="$(get_env_value mine_branch alex)"
   echo "執行指令 git merge origin/$mine_branch --no-edit"
   git merge origin/"$mine_branch" --no-edit
 
   local merge_check
-  merge_check="$(getAConfig merge_mine_check "")"
+  merge_check="$(get_env_value merge_mine_check "")"
   if [ -n "$merge_check" ]; then
     local cmd_parts=("${(@z)merge_check}")
     echo "執行指令 $merge_check"
