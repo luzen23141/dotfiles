@@ -22,6 +22,8 @@ brew "fzf"
 brew "node"
 # Interact with Google Gemini AI models from the command-line
 brew "gemini-cli"
+# GitHub command-line tool
+brew "gh"
 # Distributed revision control system
 brew "git"
 # Render markdown on the CLI
@@ -30,6 +32,8 @@ brew "glow"
 brew "go"
 # Fast linters runner for Go
 brew "golangci-lint"
+# Language server for the Go language
+brew "gopls"
 # Next generation open source RPC library and framework
 brew "grpc"
 # Update binaries installed by go install
@@ -64,6 +68,14 @@ brew "rename"
 brew "rsync"
 # CLI proxy to minimize LLM token consumption
 brew "rtk"
+# Extremely fast Python linter, written in Rust
+brew "ruff"
+# Static analysis and lint tool, for (ba)sh scripts
+brew "shellcheck"
+# Autoformat shell script source code
+brew "shfmt"
+# TOML toolkit written in Rust
+brew "taplo"
 # User interface to the TELNET protocol
 brew "telnet"
 # CLI tool that moves files or folder to the trash
@@ -139,3 +151,4 @@ cask "thaw"
 cask "vivaldi"
 # Multiplayer code editor
 cask "zed"
+go "golang.org/x/tools/cmd/goimports"

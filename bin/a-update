@@ -44,6 +44,7 @@ INTERRUPTED=0
 TOTAL_STEPS=0
 COMPLETED_STEPS=0
 STARTED_STEPS=0
+SCRIPT_STARTED=0
 CURRENT_STEP_ID=""
 CURRENT_STEP_STARTED=0
 
@@ -53,6 +54,8 @@ if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
   COLOR_GREEN=$'\033[32m'
   COLOR_YELLOW=$'\033[33m'
   COLOR_RED=$'\033[31m'
+  COLOR_CYAN=$'\033[36m'
+  COLOR_DIM=$'\033[2m'
   COLOR_BOLD=$'\033[1m'
 else
   COLOR_RESET=""
@@ -60,30 +63,44 @@ else
   COLOR_GREEN=""
   COLOR_YELLOW=""
   COLOR_RED=""
+  COLOR_CYAN=""
+  COLOR_DIM=""
   COLOR_BOLD=""
 fi
 
 typeset -a STEP_ORDER BG_STEP_IDS BG_PIDS
-typeset -A STEP_LABELS STEP_STATUS STEP_DURATION STEP_MESSAGE STEP_LOG STEP_PID STEP_WARN_FLAG
+typeset -A STEP_LABELS STEP_STATUS STEP_DURATION STEP_MESSAGE STEP_LOG STEP_PID STEP_WARN_FLAG STEP_INDEX
 
-# ── 輔助函式 ──────────────────────────────────────────────────
+# 完成後若該 step 對應某個 log 解析器，在 step 結果下方接著印更新清單。
+typeset -A STEP_UPGRADED_PRINTER
+STEP_UPGRADED_PRINTER=(
+  brew_upgrade        print_brew_upgraded
+  brew_cask_upgrade   print_brew_upgraded
+  zinit_update        print_zinit_upgraded
+  uv_tools            print_uv_upgraded
+  pnpm_globals        print_pnpm_upgraded
+  go_globals          print_gup_upgraded
+)
 
-progress_prefix() {
-  if (( TOTAL_STEPS > 0 )); then
-    print -r -- "[$STARTED_STEPS/$TOTAL_STEPS]"
-  else
-    print -r -- "[--/--]"
-  fi
+# ── 視覺輔助 ──────────────────────────────────────────────────
+
+print_banner() {
+  print -r -- "${COLOR_BOLD}${COLOR_CYAN}═══ $1 ═══${COLOR_RESET}"
 }
 
-status_badge() {
-  local step_status="$1"
+print_section() {
+  print -r -- ""
+  print -r -- "${COLOR_BOLD}${COLOR_CYAN}▸ $1${COLOR_RESET}"
+}
 
-  case "$step_status" in
-    OK)   print -r -- "${COLOR_GREEN}[OK]${COLOR_RESET}" ;;
-    WARN) print -r -- "${COLOR_YELLOW}[WARN]${COLOR_RESET}" ;;
-    FAIL) print -r -- "${COLOR_RED}[FAIL]${COLOR_RESET}" ;;
-    *)    print -r -- "[$step_status]" ;;
+step_symbol() {
+  case "$1" in
+    OK)   print -rn -- "${COLOR_GREEN}✓${COLOR_RESET}" ;;
+    WARN) print -rn -- "${COLOR_YELLOW}⚠${COLOR_RESET}" ;;
+    FAIL) print -rn -- "${COLOR_RED}✗${COLOR_RESET}" ;;
+    RUN)  print -rn -- "${COLOR_BLUE}▸${COLOR_RESET}" ;;
+    BG)   print -rn -- "${COLOR_DIM}·${COLOR_RESET}" ;;
+    *)    print -rn -- "?" ;;
   esac
 }
 
@@ -100,6 +117,17 @@ format_duration() {
   fi
 }
 
+step_index_display() {
+  local id="$1"
+  if (( TOTAL_STEPS > 0 )); then
+    print -r -- "[${STEP_INDEX[$id]}/${TOTAL_STEPS}]"
+  else
+    print -r -- "[${STEP_INDEX[$id]}]"
+  fi
+}
+
+# ── 步驟狀態 ──────────────────────────────────────────────────
+
 # 初始化步驟狀態，供最後摘要統一輸出。
 register_step() {
   local id="$1"
@@ -109,9 +137,10 @@ register_step() {
   STEP_LABELS[$id]="$label"
   STEP_STATUS[$id]="WARN"
   STEP_DURATION[$id]="0s"
-  STEP_MESSAGE[$id]="未執行"
+  STEP_MESSAGE[$id]=""
   STEP_LOG[$id]="$TMP_DIR/${id}.log"
   STARTED_STEPS=$((STARTED_STEPS + 1))
+  STEP_INDEX[$id]="$STARTED_STEPS"
 }
 
 record_step() {
@@ -130,23 +159,58 @@ record_step() {
   fi
 }
 
+# 前景步驟啟動：印「▸ [N/M] label」
+print_step_start() {
+  local id="$1"
+  print -r -- "  $(step_symbol RUN) $(step_index_display "$id") ${STEP_LABELS[$id]}"
+}
+
+# 背景步驟啟動：印「· [N/M] label」（dim）
+print_bg_step_queued() {
+  local id="$1"
+  print -r -- "  $(step_symbol BG) $(step_index_display "$id") ${COLOR_DIM}${STEP_LABELS[$id]}${COLOR_RESET}"
+}
+
+# 前景步驟完成：縮排顯示在 start 之下，不重複 label
+print_step_result_inline() {
+  local id="$1"
+  local message="${STEP_MESSAGE[$id]}"
+  local suffix=""
+
+  [[ -n "$message" ]] && suffix=" ${COLOR_DIM}—${COLOR_RESET} $message"
+  print -r -- "    $(step_symbol "${STEP_STATUS[$id]}") ${STEP_DURATION[$id]}$suffix"
+}
+
+# 背景步驟收斂 / skip：印完整 label + 時間
+print_step_result_full() {
+  local id="$1"
+  local message="${STEP_MESSAGE[$id]}"
+  local suffix=""
+
+  [[ -n "$message" ]] && suffix=" ${COLOR_DIM}—${COLOR_RESET} $message"
+  print -r -- "  $(step_symbol "${STEP_STATUS[$id]}") $(step_index_display "$id") ${STEP_LABELS[$id]} ${COLOR_DIM}(${STEP_DURATION[$id]})${COLOR_RESET}$suffix"
+}
+
 print_log_tail() {
   local log_file="$1"
 
   [[ -s "$log_file" ]] || return 0
 
-  print -r -- "  最後 ${LOG_TAIL_LINES} 行："
+  print -r -- "    ${COLOR_DIM}└ 錯誤輸出（最後 ${LOG_TAIL_LINES} 行）：${COLOR_RESET}"
   while IFS= read -r line; do
-    print -r -- "    $line"
+    print -r -- "       $line"
   done < <(tail -n "$LOG_TAIL_LINES" -- "$log_file" 2>/dev/null)
 }
 
-print_step_result() {
+# 完成後若該 step 對應某個 log 解析器，印出已更新項目清單。
+print_step_upgraded_if_any() {
   local id="$1"
-  local badge
+  local printer="${STEP_UPGRADED_PRINTER[$id]:-}"
 
-  badge="$(status_badge "${STEP_STATUS[$id]}")"
-  print -r -- "$badge ${STEP_LABELS[$id]} (${STEP_DURATION[$id]}) - ${STEP_MESSAGE[$id]}"
+  [[ "${STEP_STATUS[$id]}" == "OK" ]] || return 0
+  [[ -n "$printer" ]] || return 0
+
+  "$printer" "${STEP_LOG[$id]}"
 }
 
 # 用獨立狀態欄位標記 warn，不再依賴 magic exit code。
@@ -170,7 +234,7 @@ skip_step() {
 
   register_step "$id" "$label"
   record_step "$id" "WARN" 0 "$reason"
-  print_step_result "$id"
+  print_step_result_full "$id"
 }
 
 # 批次 skip 多個步驟，減少 cascade 重複。
@@ -193,7 +257,7 @@ run_step() {
   shift 2
 
   register_step "$id" "$label"
-  log_info "$(progress_prefix) $label"
+  print_step_start "$id"
 
   local log_file="${STEP_LOG[$id]}"
   local started=$SECONDS
@@ -211,14 +275,15 @@ run_step() {
   CURRENT_STEP_ID=""
 
   if [[ "$rc" -eq 0 ]]; then
-    record_step "$id" "OK" "$duration" "${note:-完成}"
+    record_step "$id" "OK" "$duration" "$note"
   elif [[ "$is_warn" -eq 1 ]]; then
     record_step "$id" "WARN" "$duration" "${note:-略過}"
   else
     record_step "$id" "FAIL" "$duration" "${note:-失敗，請查看錯誤輸出}"
   fi
 
-  print_step_result "$id"
+  print_step_result_inline "$id"
+  print_step_upgraded_if_any "$id"
 
   if [[ "$rc" != 0 && "$is_warn" != 1 ]]; then
     print_log_tail "$log_file"
@@ -236,7 +301,7 @@ run_bg_step() {
   shift 2
 
   register_step "$id" "$label"
-  log_info "$(progress_prefix) $label（背景）"
+  print_bg_step_queued "$id"
 
   local log_file="${STEP_LOG[$id]}"
   local meta_file="$TMP_DIR/${id}.meta"
@@ -297,7 +362,7 @@ collect_bg_steps() {
     fi
 
     if [[ "$rc" -eq 0 ]]; then
-      record_step "$id" "OK" "$duration" "${note:-完成}"
+      record_step "$id" "OK" "$duration" "$note"
     elif [[ "$is_warn" -eq 1 ]]; then
       record_step "$id" "WARN" "$duration" "${note:-略過}"
     else
@@ -308,7 +373,8 @@ collect_bg_steps() {
       fi
     fi
 
-    print_step_result "$id"
+    print_step_result_full "$id"
+    print_step_upgraded_if_any "$id"
 
     if [[ "${STEP_STATUS[$id]}" == "FAIL" ]]; then
       print_log_tail "${STEP_LOG[$id]}"
@@ -318,28 +384,26 @@ collect_bg_steps() {
 
 # ── 摘要與清理 ────────────────────────────────────────────────
 
-# 最後統一列出每個步驟狀態，避免中途噴太多雜訊。
+# 結尾摘要：只列出狀態統計與總耗時，過程細節已分區塊呈現。
 print_summary() {
   [[ "$SUMMARY_PRINTED" -eq 1 ]] && return 0
   SUMMARY_PRINTED=1
 
   local id ok_count=0 warn_count=0 fail_count=0
-
-  print -r -- ""
-  print -r -- "${COLOR_BOLD}更新摘要${COLOR_RESET}"
+  local total_duration=$((SECONDS - SCRIPT_STARTED))
 
   for id in "${STEP_ORDER[@]}"; do
-    print_step_result "$id"
-
     case "${STEP_STATUS[$id]}" in
-      OK) ok_count=$((ok_count + 1)) ;;
+      OK)   ok_count=$((ok_count + 1)) ;;
       WARN) warn_count=$((warn_count + 1)) ;;
       FAIL) fail_count=$((fail_count + 1)) ;;
     esac
   done
 
   print -r -- ""
-  print -r -- "${COLOR_GREEN}OK${COLOR_RESET}: $ok_count  ${COLOR_YELLOW}WARN${COLOR_RESET}: $warn_count  ${COLOR_RED}FAIL${COLOR_RESET}: $fail_count"
+  print_banner "摘要"
+  print -r -- "  $(step_symbol OK) OK ${ok_count}   $(step_symbol WARN) WARN ${warn_count}   $(step_symbol FAIL) FAIL ${fail_count}"
+  print -r -- "  ${COLOR_DIM}總耗時 $(format_duration "$total_duration")${COLOR_RESET}"
 }
 
 cleanup_bg_jobs() {
@@ -357,15 +421,21 @@ cleanup_bg_jobs() {
 # 收到中斷時，盡量回收背景工作並保留目前摘要。
 handle_interrupt() {
   INTERRUPTED=1
+  print -r -- ""
   log_warn "收到中斷，正在停止背景任務"
 
   # 若有前景步驟正在跑，先標記為已中斷。
-  if [[ -n "$CURRENT_STEP_ID" && "${STEP_MESSAGE[$CURRENT_STEP_ID]}" == "未執行" ]]; then
+  if [[ -n "$CURRENT_STEP_ID" && -z "${STEP_MESSAGE[$CURRENT_STEP_ID]}" ]]; then
     record_step "$CURRENT_STEP_ID" "WARN" "$((SECONDS - CURRENT_STEP_STARTED))" "已中斷"
   fi
 
   cleanup_bg_jobs
-  collect_bg_steps
+
+  if (( ${#BG_STEP_IDS[@]} > 0 )); then
+    print_section "收斂中斷後的背景任務"
+    collect_bg_steps
+  fi
+
   print_summary
   exit 130
 }
@@ -430,15 +500,13 @@ print_updated_list() {
 
   [[ -n "$items" ]] || return 0
 
-  print -r -- "  ${label}："
+  print -r -- "    ${COLOR_DIM}└ ${label}：${COLOR_RESET}"
   while IFS= read -r line; do
-    [[ -n "$line" ]] && print -r -- "    • $line"
+    [[ -n "$line" ]] && print -r -- "        · $line"
   done <<< "$items"
 }
 
 # 通用 log 解析：從 log 檔提取更新的套件名稱並印出。
-# 用法：parse_and_print_upgraded "顯示標籤" "log_file" "grep_pattern" "awk/sed 處理"
-# 各 ecosystem 的差異只在 grep pattern 和後處理，共用 guard + sort + print。
 print_upgraded_from_log() {
   local label="$1"
   local log_file="$2"
@@ -587,11 +655,11 @@ step_npm_check() {
     return 0
   fi
 
-  print -r -- "  ⚠ 發現 npm 全域套件，建議遷移至 pnpm："
+  print -r -- "    ${COLOR_DIM}└ 建議遷移至 pnpm：${COLOR_RESET}"
   while IFS= read -r entry; do
     local pkg="${entry%@*}"
-    print -r -- "    • 安裝：pnpm add -g ${pkg}"
-    print -r -- "      移除：npm uninstall -g ${pkg}"
+    print -r -- "        · 安裝：pnpm add -g ${pkg}"
+    print -r -- "          移除：npm uninstall -g ${pkg}"
   done <<< "$pkgs"
 
   step_warn "發現全域套件，建議遷移至 pnpm"
@@ -609,10 +677,10 @@ step_pipx_check() {
     return 0
   fi
 
-  print -r -- "  ⚠ 發現 pipx 工具，建議遷移至 uv tool："
+  print -r -- "    ${COLOR_DIM}└ 建議遷移至 uv tool：${COLOR_RESET}"
   while IFS= read -r pkg; do
-    print -r -- "    • 安裝：uv tool install ${pkg}"
-    print -r -- "      移除：pipx uninstall ${pkg}"
+    print -r -- "        · 安裝：uv tool install ${pkg}"
+    print -r -- "          移除：pipx uninstall ${pkg}"
   done <<< "$pkgs"
 
   step_warn "發現已安裝工具，建議遷移至 uv tool"
@@ -625,18 +693,19 @@ run_main_update() {
   TOTAL_STEPS=13
 
   # 第一階段：獨立更新背景並行
+  print_section "啟動背景任務"
   run_bg_step "zinit_update"   "zinit update --all --parallel 16"  step_zinit_update
   run_bg_step "uv_tools"       "uv tool upgrade --all"             step_update_uv_tools
   run_bg_step "pnpm_globals"   "pnpm up -g"                        step_update_pnpm_global_tools
   # gup_step  # 暫時關閉 gup 更新；取消註解即可恢復（含 TOTAL_STEPS 計數）
   run_bg_step "bun_upgrade"    "bun upgrade"                       step_update_bun
-  run_bg_step "npm_check"      "npm 全域套件檢查 (npm list -g)"    step_npm_check
-  run_bg_step "pipx_check"     "pipx 工具檢查 (pipx list)"         step_pipx_check
+  run_bg_step "npm_check"      "npm 全域套件檢查"                  step_npm_check
+  run_bg_step "pipx_check"     "pipx 工具檢查"                     step_pipx_check
 
   # brew 主鏈：update → upgrade → autoremove → cleanup → doctor
+  print_section "Homebrew 主鏈"
   if run_step "brew_update" "brew update" step_brew_update; then
     if run_step "brew_upgrade" "brew upgrade" step_brew_upgrade; then
-      print_brew_upgraded "${STEP_LOG[brew_upgrade]}"
       run_step "brew_autoremove" "brew autoremove" step_brew_autoremove
       run_step "brew_cleanup" "brew cleanup --prune=all" step_brew_cleanup
       run_step "brew_doctor" "brew doctor" step_brew_doctor
@@ -654,16 +723,12 @@ run_main_update() {
       "brew_doctor:brew doctor"
   fi
 
-  # 收斂第一階段背景步驟
+  # 收斂第一階段背景步驟（更新清單由 print_step_upgraded_if_any 自動接在每個 step 下方）
+  print_section "收斂背景任務"
   collect_bg_steps
 
-  # 列出各背景步驟的更新內容
-  [[ "${STEP_STATUS[uv_tools]}"     == "OK" ]] && print_uv_upgraded    "${STEP_LOG[uv_tools]}"
-  [[ "${STEP_STATUS[pnpm_globals]}" == "OK" ]] && print_pnpm_upgraded  "${STEP_LOG[pnpm_globals]}"
-  [[ "${STEP_STATUS[go_globals]}"   == "OK" ]] && print_gup_upgraded   "${STEP_LOG[go_globals]}"
-  [[ "${STEP_STATUS[zinit_update]}" == "OK" ]] && print_zinit_upgraded "${STEP_LOG[zinit_update]}"
-
   # 第二階段：依賴第一階段結果
+  print_section "zinit self-update"
   if [[ "${STEP_STATUS[zinit_update]}" == "OK" ]]; then
     run_bg_step "zinit_self_update" "zinit self-update" step_zinit_self_update
     BG_STEP_IDS=(zinit_self_update)
@@ -674,6 +739,7 @@ run_main_update() {
   fi
 
   # 第三階段：把目前環境寫回 Brewfile，作為快照供 git 追蹤。
+  print_section "Brewfile 快照"
   run_step "brew_bundle_dump" "brew bundle dump → Brewfile" step_brew_bundle_dump
 }
 
@@ -681,10 +747,9 @@ run_main_update() {
 run_cask_update() {
   TOTAL_STEPS=2
 
+  print_section "Homebrew Cask 更新"
   if run_step "brew_update" "brew update" step_brew_update; then
-    if run_step "brew_cask_upgrade" "brew upgrade --cask --greedy" step_brew_upgrade_cask; then
-      print_brew_upgraded "${STEP_LOG[brew_cask_upgrade]}"
-    fi
+    run_step "brew_cask_upgrade" "brew upgrade --cask --greedy" step_brew_upgrade_cask
   else
     skip_step "brew_cask_upgrade" "brew upgrade --cask --greedy" "略過：brew update 失敗"
   fi
@@ -707,18 +772,20 @@ main() {
     exit 1
   }
 
+  SCRIPT_STARTED=$SECONDS
+
   case "$1" in
     -h|--help)
       usage
       exit 0
       ;;
     "")
-      log_info "開始執行 au"
+      print_banner "a-update · au（完整更新）"
       run_main_update
       post_update_cleanup full
       ;;
     cask)
-      log_info "開始執行 auc"
+      print_banner "a-update · auc（cask 更新）"
       run_cask_update
       post_update_cleanup cask
       ;;
