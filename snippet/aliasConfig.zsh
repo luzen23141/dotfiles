@@ -23,7 +23,14 @@ alias sudo='sudo '
 # ── 檔案瀏覽 ──────────────────────────────────────────────────
 alias grep='grep --color=auto'
 alias ls="ls -G"
-alias cat="bat --paging=never"
+# cat：單一 .md 檔用 glow 渲染，其餘用 bat
+function cat() {
+  if [[ $# -eq 1 && -f "$1" && "${1:l}" == *.md ]]; then
+    command glow "$1"
+  else
+    command bat --paging=never "$@"
+  fi
+}
 alias la="eza --icons --git -alhg --time-style '+%Y-%m-%d %H:%M'"
 alias laa="eza --icons --git -alhg --total-size --time-style '+%Y-%m-%d %H:%M'"
 alias las="eza --icons -s size --git -alhg --time-style '+%Y-%m-%d %H:%M'"
