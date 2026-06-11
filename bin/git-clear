@@ -5,13 +5,13 @@ if [[ $# -gt 0 && ($1 == "branch" || $1 == "b") ]]; then
     echo "預計刪除本地分支：$2"
     git branch -D "$2"
   else
-    branches=$(git branch | grep -v '\*')
+    branches=$(git branch --format='%(refname:short)' | grep -v "^$(git branch --show-current)$")
     if [[ -z $branches ]]; then
       echo "當前沒有任何分支"
     else
       echo "預計刪除以下本地分支："
-      echo "$branches"
-      git branch | grep -v '\*' | while IFS= read -r branch; do git branch -D "$branch"; done
+      echo "$branches" | sed 's/^/  /'
+      echo "$branches" | while IFS= read -r branch; do git branch -D "$branch"; done
     fi
   fi
 elif  [[ $# -gt 0 && ($1 == "cache" || $1 == "c") ]]; then
