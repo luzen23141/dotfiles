@@ -1,7 +1,8 @@
 #! /bin/zsh
 
-# 確認破壞性操作。支援 -y/--yes；非 TTY 且未指定 -y 則失敗。
-confirm_or_exit() {
+# 確認。支援 -y/--yes；非 TTY 且未指定 -y 則失敗。
+# 成功 0；取消 1（不 exit，方便可選步驟）。
+confirm_or_return() {
   local prompt="$1"
   if [[ "$ASSUME_YES" -eq 1 ]]; then
     return 0
@@ -13,6 +14,13 @@ confirm_or_exit() {
   printf "%s" "$prompt"
   read -r reply
   if [[ "$reply" != [yY] ]]; then
+    return 1
+  fi
+  return 0
+}
+
+confirm_or_exit() {
+  if ! confirm_or_return "$1"; then
     echo "已取消"
     exit 0
   fi
@@ -35,49 +43,125 @@ if [[ $# -gt 0 && ($1 == "branch" || $1 == "b" || $1 == "cache" || $1 == "c") ]]
   fi
 fi
 
+# 刪除其他本地分支（可讓多餘 commit 變成可被 gc 清掉）
+maybe_delete_other_branches() {
+  local current branches branch
+  current=$(git branch --show-current 2>/dev/null)
+  branches=$(git branch --format='%(refname:short)' | grep -v "^${current}$" || true)
+
+  if [[ -z $branches ]]; then
+    echo "· 本地分支：沒有其他分支"
+    return 0
+  fi
+
+  echo "· 其他本地分支（保留目前：$current）："
+  echo "$branches" | sed 's/^/    /'
+  if ! confirm_or_return "  刪除以上分支以縮小 .git？[y/N] "; then
+    echo "  → 略過"
+    return 0
+  fi
+  while IFS= read -r branch; do
+    [[ -n "$branch" ]] || continue
+    git branch -D "$branch"
+  done <<< "$branches"
+}
+
+# 刪除可重建的輔助索引（commit-graph / midx / bitmap），再交由 gc 重建精簡版
+drop_regenerable_indexes() {
+  local git_dir
+  git_dir=$(git rev-parse --git-dir)
+
+  # commit-graph（單一檔或 commit-graphs/ 目錄）
+  command rm -f "$git_dir/objects/info/commit-graph" 2>/dev/null || true
+  command rm -rf "$git_dir/objects/info/commit-graphs" 2>/dev/null || true
+
+  # multi-pack-index
+  command rm -f "$git_dir/objects/pack/multi-pack-index" 2>/dev/null || true
+  command rm -f "$git_dir/objects/pack/multi-pack-index.d"* 2>/dev/null || true
+  git multi-pack-index expire 2>/dev/null || true
+
+  # pack bitmaps（*.bitmap）
+  command rm -f "$git_dir/objects/pack"/*.bitmap 2>/dev/null || true
+}
+
+# 只動 .git：reflog / prune / 可重建索引 / repack / gc（不動工作區）
+maybe_shrink_git() {
+  local size remote
+  size=$(du -sh .git 2>/dev/null | awk '{print $1}')
+  echo "· 壓縮 .git（目前 ${size:-?}）"
+  echo "    刪除可重建索引：commit-graph / multi-pack-index / *.bitmap"
+  echo "    reflog expire / remote prune / fetch --prune / pack-refs /"
+  echo "    repack + gc --aggressive --prune=now（含子模組）"
+  command -v git-lfs >/dev/null 2>&1 && echo "    git lfs prune"
+  if ! confirm_or_return "  執行？壓縮後無法靠 reflog 救回舊狀態 [y/N] "; then
+    echo "  → 略過"
+    return 0
+  fi
+
+  git reflog expire --expire=now --all
+  git submodule foreach --recursive git reflog expire --expire=now --all 2>/dev/null || true
+
+  for remote in $(git remote 2>/dev/null); do
+    git remote prune "$remote" 2>/dev/null || true
+  done
+  git fetch --prune --all 2>/dev/null || true
+  git submodule foreach --recursive '
+    for r in $(git remote 2>/dev/null); do git remote prune "$r" 2>/dev/null || true; done
+    git fetch --prune --all 2>/dev/null || true
+  ' 2>/dev/null || true
+
+  git worktree prune 2>/dev/null || true
+  git pack-refs --all --prune 2>/dev/null || true
+  git rerere gc 2>/dev/null || true
+
+  drop_regenerable_indexes
+  git submodule foreach --recursive '
+    git_dir=$(git rev-parse --git-dir)
+    rm -f "$git_dir/objects/info/commit-graph" 2>/dev/null || true
+    rm -rf "$git_dir/objects/info/commit-graphs" 2>/dev/null || true
+    rm -f "$git_dir/objects/pack/multi-pack-index" 2>/dev/null || true
+    rm -f "$git_dir/objects/pack"/*.bitmap 2>/dev/null || true
+    git multi-pack-index expire 2>/dev/null || true
+  ' 2>/dev/null || true
+
+  git repack -a -d -f --depth=250 --window=250 2>/dev/null || true
+  git gc --prune=now --aggressive
+  git submodule foreach --recursive '
+    git repack -a -d -f --depth=250 --window=250 2>/dev/null || true
+    git gc --prune=now --aggressive
+  ' 2>/dev/null || true
+
+  if command -v git-lfs >/dev/null 2>&1; then
+    git lfs prune 2>/dev/null || true
+    git submodule foreach --recursive git lfs prune 2>/dev/null || true
+  fi
+
+  size=$(du -sh .git 2>/dev/null | awk '{print $1}')
+  echo "  → 清理後 .git 大小：${size:-?}"
+}
+
 if [[ $# -gt 0 && ($1 == "branch" || $1 == "b") ]]; then
   if [[ -n $2 ]]; then
     echo "預計刪除本地分支：$2"
     confirm_or_exit "確認刪除？[y/N] "
     git branch -D "$2"
   else
-    branches=$(git branch --format='%(refname:short)' | grep -v "^$(git branch --show-current)$")
-    if [[ -z $branches ]]; then
-      echo "當前沒有任何分支"
-    else
-      echo "預計刪除以下本地分支："
-      echo "$branches" | sed 's/^/  /'
-      confirm_or_exit "確認刪除以上分支？[y/N] "
-      echo "$branches" | while IFS= read -r branch; do git branch -D "$branch"; done
-    fi
+    maybe_delete_other_branches
   fi
 elif [[ $# -gt 0 && ($1 == "cache" || $1 == "c") ]]; then
-  size=$(du -sh .git | awk '{print $1}')
-  echo "預計執行 git clear cache（僅 .git：reflog expire / gc --aggressive / reset）"
-  echo "不會刪除工作區未追蹤檔案（不含 git clean）"
-  printf "清理前 .git 目錄大小為：%s\n" "$size"
-  confirm_or_exit "確認繼續？[y/N] "
+  size=$(du -sh .git 2>/dev/null | awk '{print $1}')
+  echo "git clear cache — 縮小 .git 目錄"
+  echo "只動 .git（與工作區／.env 無關，不會 clean / reset 工作區）"
+  printf "目前 .git 大小：%s\n\n" "${size:-?}"
 
-  echo "開始清理 .git 快取"
-  printf "清理前 .git 目錄大小為：%s\n\n" "$size"
+  maybe_delete_other_branches
+  echo ""
+  maybe_shrink_git
 
-  # 清理引用日誌（Reflog）
-  git reflog expire --expire=now --all
-  git submodule foreach git reflog expire --expire=now --all
-
-  # 壓縮並優化倉庫（Garbage Collection）
-  # 清理不再需要的物件並優化效能；--prune=now 立即刪除舊物件
-  # --aggressive 更積極的優化，速度較慢，建議每幾百次 commit 執行一次
-  git gc --prune=now --aggressive
-  git submodule foreach git gc --prune=now --aggressive
-
-  # 清理暫存區（Staging Area）
-  # 取消所有已暫存的檔案（撤銷 git add）；不影響已追蹤的工作區修改
-  git reset
-  git submodule foreach git reset
-
-  size=$(du -sh .git | awk '{print $1}')
-  printf "\n清理後 .git 目錄大小為：%s\n" "$size"
+  echo ""
+  echo "完成"
 else
   echo '用法: git clear branch [分支名] [-y] 或 git clear cache [-y]'
+  echo '  g c b [名]  → 刪除本地分支'
+  echo '  g c c       → 縮小 .git（可選刪其他分支 + gc；不動工作區）'
 fi
