@@ -5,6 +5,11 @@
 # ==========================================
 CONFIG_FILE="$HOME/Library/Mobile Documents/com~apple~CloudDocs/dotfiles_data/backup.json"
 ERROR_COUNT=0
+
+# SSH 前置：新電腦首次 clone 未知 host 時，自動信任新 host key（accept-new 僅信任
+# 首次出現的 key，之後 key 變更仍會拒絕），避免 git clone --quiet 卡在互動式驗證。
+# 已設定 GIT_SSH_COMMAND 者不覆蓋。
+export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15}"
 # ==========================================
 
 track_error() {

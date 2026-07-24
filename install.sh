@@ -103,4 +103,43 @@ fi
 brew update
 brew bundle --file "$DOTFILES/Brewfile"
 
+# === 階段 3: 從 iCloud 備份還原設定（restore）===
+#
+# 注意：restore 會用 iCloud 備份覆蓋現有設定，並關閉/重開部分 app。
+# 全新電腦才需要；日常更新請跳過，以免覆蓋當前設定。
+BACKUP_SCRIPT="$DOTFILES/bin/backup.sh"
+BACKUP_JSON="$HOME/Library/Mobile Documents/com~apple~CloudDocs/dotfiles_data/backup.json"
+
+# 用 /dev/tty 讀取，確保 `bash <(curl ...)` 管線模式下仍可互動
+if [ -r /dev/tty ]; then
+  printf "\n是否從 iCloud 備份還原設定 (restore)？全新電腦按 y，日常更新直接 Enter 跳過 [y/N] " > /dev/tty
+  read -r restore_ans < /dev/tty || restore_ans=""
+else
+  restore_ans=""
+  echo "（非互動環境，略過 restore；稍後可手動執行：bash $BACKUP_SCRIPT restore）"
+fi
+
+if [[ "$restore_ans" =~ ^[Yy]$ ]]; then
+  # 等待 iCloud 同步 backup.json（可能尚未下載完成）
+  if [ ! -f "$BACKUP_JSON" ]; then
+    echo "找不到 $BACKUP_JSON"
+    echo "請先登入 iCloud，並等待 dotfiles_data 同步下載完成。"
+    if [ -r /dev/tty ]; then
+      printf "同步完成後按 Enter 繼續（或 Ctrl-C 中止）..." > /dev/tty
+      read -r _ < /dev/tty || true
+    fi
+  fi
+
+  if [ -f "$BACKUP_JSON" ] && jq empty "$BACKUP_JSON" > /dev/null 2>&1; then
+    echo "開始還原設定..."
+    # backup.sh 已內建 GIT_SSH_COMMAND=accept-new，處理首次 SSH host key；
+    # ssh 金鑰本身也在備份中，restore 會先還原 ~/.ssh 再 clone git 專案。
+    bash "$BACKUP_SCRIPT" restore || echo "[警告] restore 過程有錯誤，請檢視上方輸出後手動補救"
+  else
+    echo "[略過] 仍找不到或無法讀取 backup.json。稍後可手動執行：bash $BACKUP_SCRIPT restore"
+  fi
+else
+  echo "已略過 restore。"
+fi
+
 echo "完成！"

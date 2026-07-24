@@ -2,9 +2,13 @@
 alias dc="docker_check && docker compose"
 alias dp="docker_check && docker ps"
 
-# Laradock 相關別名
-alias dcd="(cd ~/Code/dockerCompose && docker compose down)"
-alias dcu="(cd ~/Code/dockerCompose && docker_check && docker compose up -d)"
+# Laradock 相關別名（用 function 才能把服務名傳進 compose，例如 dcu nginx）
+dcd() {
+  (cd ~/Code/dockerCompose && docker compose down "$@")
+}
+dcu() {
+  (cd ~/Code/dockerCompose && docker_check && docker compose up -d "$@")
+}
 function docker_check() {
   if ! docker ps > /dev/null 2>&1; then
     open -a OrbStack
