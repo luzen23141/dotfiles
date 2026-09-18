@@ -5,11 +5,32 @@ alias gpf="git push --force-with-lease"
 alias gl="git pull -p"  # -p 拉取時清除遠端已刪除分支的本地追蹤分支
 alias gc="git checkout"
 alias gb="git branch"
-alias gm="git merge"
+# gm alex → git merge origin/alex（僅在 origin/alex 確實存在時改寫）
+# 逐一檢查「非 flag 的參數」，故 gm --no-ff alex、gm alex --no-edit 都會走 origin；
+# tag / SHA / 純本地分支（無同名 origin/）則原樣傳遞。
+# value_opts 是會吃下一個參數當值的選項，需跳過以免把 -m 的訊息當成分支名改寫。
+function gm() {
+  local -a args=("$@") value_opts=(-m -s -X --strategy --strategy-option --into-name)
+  local i=1 opts_ended=0
+  while (( i <= $#args )); do
+    if (( ! opts_ended )) && [[ "${args[i]}" == -* ]]; then
+      [[ "${args[i]}" == -- ]] && opts_ended=1
+      (( ${value_opts[(Ie)${args[i]}]} )) && (( i++ ))
+      (( i++ ))
+      continue
+    fi
+    git rev-parse --verify --quiet "origin/${args[i]}" >/dev/null 2>&1 \
+      && args[i]="origin/${args[i]}"
+    (( i++ ))
+  done
+  git merge "${args[@]}"
+}
 alias gs="git status"
 alias grv="git remote -v"
 alias gcb="git clear branch"
 alias gsu="git submodule update --init --recursive"
+alias gwl="git worktree list"
+alias gwp="git worktree prune"
 
 # 將全域 gitignore 合併進本 repo 的 exclude（已存在的行不重複附加）
 function gai() {
@@ -56,7 +77,7 @@ function gito() {
   source "$DOTFILES"/helperFunc/envHelper
   git open origin "$(get_env_value main_branch master)"
 }
-alias grh="git reset HEAD^"
+alias grh="git reset 'HEAD^'"
 alias gba="git branch -a"
 alias gsur="git submodule update --recursive --remote"
 alias grs="git restore --staged"
@@ -123,4 +144,21 @@ function git_commit_tmp() {
   fi
 }
 
-
+# alias-tips 只比對 `alias` 表與 git alias（function 只被它用來「取消」提示，
+# 見 alias-tips.plugin.zsh 把 functions grep 成名稱行），所以 function 形式的
+# gm / ga 打完長指令不會有提示。以下用同一個 preexec 機制自行補上。
+# 對應的 alias-tips 泛用提示（g merge …）已在 .zshrc 用 EXCLUDES="g" 關掉，避免重複兩行。
+typeset -gA GIT_FN_ALIAS_TIPS=(
+  'git merge' gm
+  'git add'   ga
+)
+function _git_fn_alias_tip() {
+  local long short
+  for long short in "${(kv)GIT_FN_ALIAS_TIPS[@]}"; do
+    [[ "$1" == "$long" || "$1" == "$long "* ]] || continue
+    print -P "%F{blue}${ZSH_PLUGINS_ALIAS_TIPS_TEXT:-Alias tip: }%B${short}${1#$long}%b%f"
+    return 0
+  done
+}
+autoload -Uz add-zsh-hook
+add-zsh-hook preexec _git_fn_alias_tip

@@ -14,11 +14,32 @@ EXPECTED_SSH_REMOTE="git@github.com:luzen23141/dotfiles.git"
 
 # === 階段 1: 取得 dotfiles repo ===
 
-# 沒有 git 代表尚未安裝 Xcode Command Line Tools
+# 1.0 檢查 Xcode Command Line Tools（git 等工具依賴它）
+if ! xcode-select -p > /dev/null 2>&1; then
+  echo "錯誤：尚未安裝 Xcode Command Line Tools。"
+  echo "請執行以下指令安裝，完成後重新執行本腳本："
+  echo ""
+  echo "    xcode-select --install"
+  echo ""
+  exit 1
+fi
+
+# 1.1 檢查 Xcode 授權條款是否已同意
+# 未同意時，xcrun/clang/git 等會失敗並輸出含 "license" 的訊息。直接偵測此狀態最可靠
+# （同 Homebrew 官方安裝腳本做法），不論作用中的是完整 Xcode.app 或純 CLT 都適用。
+if ! xcode_license_output="$(/usr/bin/xcrun clang 2>&1)" && [[ "$xcode_license_output" == *license* ]]; then
+  echo "錯誤：尚未同意 Xcode 授權條款。"
+  echo "請執行以下指令同意授權，完成後重新執行本腳本："
+  echo ""
+  echo "    sudo xcodebuild -license accept"
+  echo ""
+  exit 1
+fi
+
+# 1.2 保險：git 仍不存在則中止（理論上 CLT 已提供 git）
 if ! command -v git > /dev/null 2>&1; then
-  xcode-select --install
-  echo "請等 Xcode Command Line Tools 安裝完成後，重新執行此腳本"
-  exit 0
+  echo "錯誤：找不到 git，請確認 Xcode Command Line Tools 安裝完成後再重試。"
+  exit 1
 fi
 
 if [ ! -d "$DOTFILES" ]; then
@@ -100,8 +121,37 @@ else
 fi
 
 # 2.4 Brew bundle
+# 部分 cask 安裝需要 root 權限，預設每個套件都會各自跳一次密碼。
+# 解法：先取得一次 sudo 授權，再於背景定時刷新 sudo 時間戳，讓整個 bundle 過程共用授權。
+echo "部分套件需要管理員權限，請先輸入一次密碼（後續自動沿用，不再逐一詢問）："
+sudo -v
+
+# 背景保活：每 60 秒刷新 sudo 時間戳，直到本腳本結束（父程序消失即自動退出）
+( while true; do sudo -n true; sleep 60; kill -0 "$$" 2>/dev/null || exit; done ) &
+SUDO_KEEPALIVE_PID=$!
+# 確保腳本結束（含中途 exit）時一定關掉背景保活
+trap 'kill "$SUDO_KEEPALIVE_PID" 2>/dev/null' EXIT
+
 brew update
 brew bundle --file "$DOTFILES/Brewfile"
+
+# 2.5 註冊 JDK 到系統目錄（沿用上面那次 sudo 授權，故必須放在保活關閉之前）
+# Homebrew 的 openjdk 一律 keg-only，macOS 的 /usr/libexec/java_home 與 GUI IDE 都看不到它，
+# 需手動把 JDK bundle 連進 /Library/Java/JavaVirtualMachines。
+# CLI 用的 JAVA_HOME / PATH 由 .zshrc 指定，與此步驟獨立。
+for jdk_formula in openjdk@17 openjdk; do
+  jdk_bundle="/opt/homebrew/opt/$jdk_formula/libexec/openjdk.jdk"
+  [ -d "$jdk_bundle" ] || continue
+  jdk_link="/Library/Java/JavaVirtualMachines/${jdk_formula/@/-}.jdk"
+  [ "$(readlink "$jdk_link")" = "$jdk_bundle" ] && continue
+  sudo mkdir -p /Library/Java/JavaVirtualMachines
+  sudo ln -sfn "$jdk_bundle" "$jdk_link"
+  echo "已註冊 JDK：$jdk_link → $jdk_bundle"
+done
+
+# bundle 完成後即可停止保活（trap 也會兜底）
+kill "$SUDO_KEEPALIVE_PID" 2>/dev/null || true
+trap - EXIT
 
 # === 階段 3: 從 iCloud 備份還原設定（restore）===
 #

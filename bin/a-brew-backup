@@ -5,4 +5,5 @@ export DOTFILES="${DOTFILES:-$HOME/dotfiles}"
 echo "Backing up Brewfile..."
 
 cd "$DOTFILES" || { echo "Path Error"; exit 1; }
-brew bundle dump --describe --force --file="$DOTFILES"/Brewfile
+# Homebrew 7 起 --describe 已停用；描述註解已是預設行為。
+brew bundle dump --force --file="$DOTFILES"/Brewfile

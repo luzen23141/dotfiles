@@ -1,5 +1,12 @@
+" viminfo 目錄平時由 .zshrc 的 mkdir -p 建立；非互動環境（GUI 工具、cron）沒跑過 .zshrc，
+" 目錄不存在時 vim 會靜默寫不出 viminfo，所以這裡自己補一次。
+silent! call mkdir($HOME . '/.cache/.vim', 'p')
 set viminfofile=$HOME/.cache/.vim/.viminfo
-set runtimepath+=$DOTFILES/vim
+
+" runtimepath 用本檔自身位置推導，不依賴 $DOTFILES：
+" VIMINIT 只在互動 shell 有值，但 vim 也可能被 -u 直接指到這個檔（此時 $DOTFILES 為空，
+" runtimepath 會變成沒用的 "/vim"，下面的 colorscheme 就找不到 colors/solarized.vim）。
+execute 'set runtimepath^=' . fnameescape(expand('<sfile>:p:h'))
 set nocompatible
 set number
 set incsearch
@@ -10,4 +17,6 @@ set hlsearch
 set t_Co=256
 set ts=4
 set expandtab
-colorscheme solarized
+" silent!：colors/solarized.vim 不在 runtimepath 時會噴 E185 並停在 Press ENTER，
+" 卡住 git commit 之類的非互動流程；配色失敗不值得阻斷編輯。
+silent! colorscheme solarized

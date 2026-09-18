@@ -1,3 +1,5 @@
+source "$DOTFILES/snippet/ffmpegHelper.zsh"
+
 # ffmpeg相關
 alias ffprobe="ffprobe -hide_banner"
 alias ffp="ffprobe -hide_banner"
@@ -194,7 +196,7 @@ function ffmpeg_ssim_psnr() {
 #     60-80      = 一般品質 (明顯但可容忍的差異)
 #     < 60       = 品質不佳 (明顯的品質損失)
 #
-# 注意：需要 VMAF 模型檔案位於 $DOTFILES/vmaf_v0.6.1.json
+# 注意：需要 VMAF 模型檔案位於 $DOTFILES/vmaf_v1.0.16_3d0h.json
 #=======================================================================
 alias ffmvmaf="ffmpeg_vmaf"
 function ffmpeg_vmaf() {
@@ -285,11 +287,11 @@ function ffmpeg_vmaf() {
     return 1
   fi
 
-  # 檢查 VMAF 模型檔案
-  local vmaf_model="$DOTFILES/vmaf_v0.6.1.json"
-  if [ ! -f "$vmaf_model" ]; then
+  # 檢查 VMAF 模型檔案與支援 speed_chroma 的 libvmaf
+  local vmaf_model
+  if ! vmaf_model=$(_ffmpeg_vmaf_model 2>&1); then
     echo ""
-    echo "❌ 錯誤：VMAF 模型檔案不存在: $vmaf_model"
+    echo "❌ $vmaf_model"
     echo ""
     return 1
   fi
@@ -329,7 +331,7 @@ function ffmpeg_vmaf() {
   fi
 
   # 建立完整的 ffmpeg 命令
-  local ffmpeg_cmd=(ffmpeg -i "$comparison" -i "$reference" -filter_complex "$filter_complex" -f null -)
+  local ffmpeg_cmd=(_ffmpeg_vmaf_ffmpeg -i "$comparison" -i "$reference" -filter_complex "$filter_complex" -f null -)
   
   # 如果是 dry-run 模式，只顯示命令不執行
   if [ "$dry_run" = true ]; then

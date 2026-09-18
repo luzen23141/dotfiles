@@ -472,6 +472,8 @@ function toAv1Test() {
     echo "  Preset: 4, 5, 6"
     echo "  Grain: 指定值（預設 0）"
     echo "  總組合: 1 + 4×3 = 13 個測試"
+    echo "  品質指標: 每個編碼結果對原始裁切計算 SSIM / PSNR / VMAF"
+    echo "            (VMAF 模型: vmaf_v1.0.16_3d0h)"
     echo ""
     echo "💡 使用範例"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -558,6 +560,7 @@ function toAv1Test() {
   local -a test_results_time
   local -a test_results_ssim
   local -a test_results_psnr
+  local -a test_results_vmaf
   
   echo ""
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -571,6 +574,7 @@ function toAv1Test() {
   echo "   • 原始裁切: 1 個 (作為品質基準)"
   echo "   • CRF: (30, 35, 40, 45)"
   echo "   • Preset: (4, 5, 6)"
+  echo "   • 品質指標: SSIM / PSNR / VMAF (vmaf_v1.0.16_3d0h)"
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo ""
 
@@ -614,16 +618,16 @@ function toAv1Test() {
     local file_size
     file_size=$(stat -f%z "$orig_output" 2>/dev/null)
     if [ -n "$file_size" ]; then
-      local size_fmt
-      size_fmt=$(_ffmpeg_format_size "$file_size")
+      local size_fmt="$(_ffmpeg_format_size "$file_size")"
       echo "✅ 完成 - 大小: $size_fmt, 時間: ${test_duration}s"
       
-      # 收集測試結果（原始裁切沒有 SSIM/PSNR）
+      # 收集測試結果（原始裁切為基準，SSIM/PSNR/VMAF 為理論最佳值）
       test_results_name+=("Original_Copy")
       test_results_size+=("$file_size")
       test_results_time+=("$test_duration")
       test_results_ssim+=("1.000")
       test_results_psnr+=("∞")
+      test_results_vmaf+=("100.00")
     fi
   else
     echo "❌ 裁切失敗"
@@ -666,8 +670,7 @@ function toAv1Test() {
           local file_size
           file_size=$(stat -f%z "$default_output" 2>/dev/null)
           if [ -n "$file_size" ]; then
-            local size_fmt
-            size_fmt=$(_ffmpeg_format_size "$file_size")
+            local size_fmt="$(_ffmpeg_format_size "$file_size")"
             
             # 如果沒有參考檔案且這是第一個測試（CRF30 + preset4），設為參考
             if [ -z "$reference_file" ] && [ "$crf" = "30" ] && [ "$preset" = "4" ]; then
@@ -680,15 +683,16 @@ function toAv1Test() {
               echo "✅ 完成 - 大小: $size_fmt, 時間: ${test_duration}s"
               echo "   📌 設為品質基準"
               
-              # 收集測試結果（第一個沒有 SSIM/PSNR）
+              # 收集測試結果（第一個沒有 SSIM/PSNR/VMAF）
               test_results_name+=("CRF${crf}_P${preset}")
               test_results_size+=("$file_size")
               test_results_time+=("$test_duration")
               test_results_ssim+=("-")
               test_results_psnr+=("-")
+              test_results_vmaf+=("-")
             else
               # 計算品質指標
-              local ssim_val="-" psnr_val="-"
+              local ssim_val="-" psnr_val="-" vmaf_val="-"
               if [ -n "$reference_file" ] && [ -f "$reference_file" ]; then
                 echo "   📊 正在計算品質指標..."
                 local quality_result
@@ -697,20 +701,29 @@ function toAv1Test() {
                   ssim_val=$(echo "$quality_result" | awk '{print $1}')
                   psnr_val=$(echo "$quality_result" | awk '{print $2}')
                 fi
+                echo "   🎯 正在計算 VMAF..."
+                local vmaf_result
+                vmaf_result=""
+                if vmaf_result=$(_ffmpeg_calculate_vmaf "$reference_file" "$default_output"); then
+                  vmaf_val="$vmaf_result"
+                fi
               fi
               
-              # 重命名檔案，包含 SSIM/PSNR/時間
+              # 重命名檔案，包含 SSIM/PSNR/VMAF/時間
               local new_name="test_av1_crf${crf}_p${preset}"
               if [ "$ssim_val" != "-" ]; then
-                new_name="${new_name}_ssim${ssim_val}_psnr${psnr_val}dB_${test_duration}s.mp4"
-              else
-                new_name="${new_name}_${test_duration}s.mp4"
+                new_name="${new_name}_ssim${ssim_val}_psnr${psnr_val}dB"
               fi
+              if [ "$vmaf_val" != "-" ]; then
+                new_name="${new_name}_vmaf${vmaf_val}"
+              fi
+              new_name="${new_name}_${test_duration}s.mp4"
               output_name="${test_dir}/${new_name}"
               mv "$default_output" "$output_name"
               
               echo "✅ 完成 - 大小: $size_fmt, 時間: ${test_duration}s"
               [ "$ssim_val" != "-" ] && echo "   📈 SSIM: $ssim_val, PSNR: ${psnr_val}dB"
+              [ "$vmaf_val" != "-" ] && echo "   🎯 VMAF: $vmaf_val"
               
               # 收集測試結果
               test_results_name+=("CRF${crf}_P${preset}")
@@ -718,6 +731,7 @@ function toAv1Test() {
               test_results_time+=("$test_duration")
               test_results_ssim+=("$ssim_val")
               test_results_psnr+=("$psnr_val")
+              test_results_vmaf+=("$vmaf_val")
             fi
           fi
         else
@@ -772,7 +786,7 @@ function toAv1Test() {
     done
     
     if [ "$has_quality" = true ]; then
-      printf "%-20s %12s %10s %12s %12s\n" "參數組合" "檔案大小" "執行時間" "SSIM" "PSNR(dB)"
+      printf "%-20s %12s %10s %10s %10s %10s\n" "參數組合" "檔案大小" "執行時間" "SSIM" "PSNR(dB)" "VMAF"
     else
       printf "%-20s %15s %12s\n" "參數組合" "檔案大小" "執行時間"
     fi
@@ -786,8 +800,8 @@ function toAv1Test() {
       local time="${test_results_time[$i]}"
       local ssim="${test_results_ssim[$i]}"
       local psnr="${test_results_psnr[$i]}"
-      local size_fmt
-      size_fmt=$(_ffmpeg_format_size "$size")
+      local vmaf="${test_results_vmaf[$i]}"
+      local size_fmt="$(_ffmpeg_format_size "$size")"
       
       # 格式化時間顯示
       local time_fmt=""
@@ -800,7 +814,7 @@ function toAv1Test() {
       fi
       
       if [ "$has_quality" = true ]; then
-        printf "%-20s %12s %10s %12s %12s\n" "$name" "$size_fmt" "$time_fmt" "$ssim" "$psnr"
+        printf "%-20s %12s %10s %10s %10s %10s\n" "$name" "$size_fmt" "$time_fmt" "$ssim" "$psnr" "$vmaf"
       else
         printf "%-20s %15s %12s\n" "$name" "$size_fmt" "$time_fmt"
       fi

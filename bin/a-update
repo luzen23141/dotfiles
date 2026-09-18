@@ -4,10 +4,17 @@
 export DOTFILES="${DOTFILES:-$HOME/dotfiles}"
 export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
 export PNPM_HOME="${PNPM_HOME:-$HOME/.data/pnpm}"
+export BUN_INSTALL="${BUN_INSTALL:-$HOME/.data/bun}"
 
 case ":$PATH:" in
   *":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
+esac
+
+# Bun 全域 CLI 使用獨立前綴；au 必須沿用相同位置才會更新到 omp 等套件。
+case ":$PATH:" in
+  *":$BUN_INSTALL/bin:"*) ;;
+  *) export PATH="$BUN_INSTALL/bin:$PATH" ;;
 esac
 
 # 用絕對路徑取代 eval "$(brew shellenv)"，只需要能呼叫 brew 即可。
@@ -82,6 +89,29 @@ STEP_UPGRADED_PRINTER=(
   go_globals          print_gup_upgraded
 )
 
+# 每個 step 實際執行的指令，顯示在 label 後方（dim），讓輸出可追溯。
+typeset -A STEP_CMD_HINT
+STEP_CMD_HINT=(
+  zinit_update       'zinit update --all --parallel 16'
+  uv_tools           'uv tool upgrade --all; uv self update'
+  pnpm_globals       'pnpm up -g; pnpm self-update'
+  go_globals         'gup update'
+  bun_globals        'bun update -g --latest'
+  npm_globals        'npm update -g'
+  pipx_tools         'pipx upgrade-all'
+  macos_updates      'softwareupdate -l'
+  brew_update        'brew update'
+  brew_upgrade       'brew upgrade --formula'
+  brew_cask_upgrade  'brew upgrade --cask --greedy'
+  brew_autoremove    'brew autoremove'
+  brew_cleanup       'brew cleanup --prune=all'
+  brew_doctor        'brew doctor'
+  bun_upgrade        'bun upgrade'
+  agent_skills       'skills update --global --yes'
+  zinit_self_update  'zinit self-update'
+  brew_bundle_dump   'brew bundle dump --force --file=Brewfile'
+)
+
 # ── 視覺輔助 ──────────────────────────────────────────────────
 
 print_banner() {
@@ -126,6 +156,18 @@ step_index_display() {
   fi
 }
 
+# label 後方接實際指令，例如「brew：更新索引 (brew update)」。
+step_label() {
+  local id="$1"
+  local hint="${STEP_CMD_HINT[$id]:-}"
+
+  if [[ -n "$hint" ]]; then
+    print -r -- "${STEP_LABELS[$id]} ${COLOR_DIM}(${hint})${COLOR_RESET}"
+  else
+    print -r -- "${STEP_LABELS[$id]}"
+  fi
+}
+
 # ── 步驟狀態 ──────────────────────────────────────────────────
 
 # 初始化步驟狀態，供最後摘要統一輸出。
@@ -162,13 +204,13 @@ record_step() {
 # 前景步驟啟動：印「▸ [N/M] label」
 print_step_start() {
   local id="$1"
-  print -r -- "  $(step_symbol RUN) $(step_index_display "$id") ${STEP_LABELS[$id]}"
+  print -r -- "  $(step_symbol RUN) $(step_index_display "$id") $(step_label "$id")"
 }
 
 # 背景步驟啟動：印「· [N/M] label」（dim）
 print_bg_step_queued() {
   local id="$1"
-  print -r -- "  $(step_symbol BG) $(step_index_display "$id") ${COLOR_DIM}${STEP_LABELS[$id]}${COLOR_RESET}"
+  print -r -- "  $(step_symbol BG) $(step_index_display "$id") ${COLOR_DIM}$(step_label "$id")${COLOR_RESET}"
 }
 
 # 前景步驟完成：縮排顯示在 start 之下，不重複 label
@@ -188,7 +230,7 @@ print_step_result_full() {
   local suffix=""
 
   [[ -n "$message" ]] && suffix=" ${COLOR_DIM}—${COLOR_RESET} $message"
-  print -r -- "  $(step_symbol "${STEP_STATUS[$id]}") $(step_index_display "$id") ${STEP_LABELS[$id]} ${COLOR_DIM}(${STEP_DURATION[$id]})${COLOR_RESET}$suffix"
+  print -r -- "  $(step_symbol "${STEP_STATUS[$id]}") $(step_index_display "$id") $(step_label "$id") ${COLOR_DIM}${STEP_DURATION[$id]}${COLOR_RESET}$suffix"
 }
 
 print_log_tail() {
@@ -421,7 +463,7 @@ print_summary() {
     print -r -- ""
     print -r -- "  ${COLOR_RED}失敗項目：${COLOR_RESET}"
     for id in "${fail_ids[@]}"; do
-      print -r -- "    $(step_symbol FAIL) ${STEP_LABELS[$id]}${STEP_MESSAGE[$id]:+ — ${STEP_MESSAGE[$id]}}"
+      print -r -- "    $(step_symbol FAIL) $(step_label "$id")${STEP_MESSAGE[$id]:+ — ${STEP_MESSAGE[$id]}}"
     done
   fi
 
@@ -429,7 +471,7 @@ print_summary() {
     print -r -- ""
     print -r -- "  ${COLOR_YELLOW}警告項目：${COLOR_RESET}"
     for id in "${warn_ids[@]}"; do
-      print -r -- "    $(step_symbol WARN) ${STEP_LABELS[$id]}${STEP_MESSAGE[$id]:+ — ${STEP_MESSAGE[$id]}}"
+      print -r -- "    $(step_symbol WARN) $(step_label "$id")${STEP_MESSAGE[$id]:+ — ${STEP_MESSAGE[$id]}}"
     done
   fi
 }
@@ -495,6 +537,11 @@ brew_step() {
   "$BREW_BIN" "$@"
 }
 
+is_brew_managed() {
+  [[ -n "$BREW_BIN" ]] || return 1
+  "$BREW_BIN" list --versions "$1" >/dev/null 2>&1
+}
+
 step_brew_update()       { brew_step update; }
 # formula 與 cask 分開：cask 用 --greedy 涵蓋自稱會自動更新的 App（原 auc）
 step_brew_upgrade()      { brew_step upgrade --formula; }
@@ -514,7 +561,8 @@ step_brew_bundle_dump() {
   [[ -n "$BREW_BIN" ]] || { step_warn "略過：未安裝 Homebrew"; return 1; }
 
   local brewfile="$DOTFILES/Brewfile"
-  "$BREW_BIN" bundle dump --force --describe --file="$brewfile" || return $?
+  # Homebrew 7 起 --describe 已停用（描述註解改為預設行為），不可再傳。
+  "$BREW_BIN" bundle dump --force --file="$brewfile" || return $?
 
   if command -v git >/dev/null 2>&1 && git -C "$DOTFILES" diff --quiet -- Brewfile 2>/dev/null; then
     typeset -g STEP_NOTE="Brewfile 無變動"
@@ -651,8 +699,8 @@ step_update_uv_tools() {
 
   uv tool upgrade --all || return $?
 
-  if [[ -n "$BREW_BIN" ]] && "$BREW_BIN" list uv >/dev/null 2>&1; then
-    typeset -g STEP_NOTE="tools 完成；略過 self update（Homebrew 管理）"
+  if is_brew_managed uv; then
+    typeset -g STEP_NOTE="tools 完成；本體由 Homebrew formula 管理"
     return 0
   fi
 
@@ -665,19 +713,84 @@ step_update_uv_tools() {
   step_warn "$STEP_NOTE"
 }
 
+# pnpm：先升級全域套件，再升級本體，避免兩者並行改寫 pnpm。
 step_update_pnpm_global_tools() {
   require_cmd pnpm || return
-  pnpm up -g
+
+  pnpm up -g || return $?
+
+  if is_brew_managed pnpm; then
+    typeset -g STEP_NOTE="全域套件完成；本體由 Homebrew formula 管理"
+    return 0
+  fi
+
+  if pnpm self-update; then
+    typeset -g STEP_NOTE="全域套件與本體完成"
+    return 0
+  fi
+
+  typeset -g STEP_NOTE="全域套件完成；略過 self update（安裝方式不支援或更新失敗）"
+  step_warn "$STEP_NOTE"
 }
 
 step_update_go_global_tools() {
   require_cmd gup || return
-  gup update
+
+  gup update || return $?
+
+  if is_brew_managed gup; then
+    typeset -g STEP_NOTE="Go 工具完成；本體由 Homebrew formula 管理"
+  fi
+}
+
+# Bun 全域套件清單位於 BUN_INSTALL/install/global/package.json。
+# 用 --latest：package.json 記的是 caret 範圍（如 ^17.4.2），不加會卡在同一個 major，
+# omp 這類跨 major 發版的工具永遠更新不到。
+step_update_bun_global_tools() {
+  require_cmd bun || return
+
+  local global_bin global_root global_manifest
+  global_bin="$(bun pm bin -g 2>/dev/null)" || {
+    step_warn "無法取得 Bun 全域套件目錄"
+    return 1
+  }
+  global_root="${global_bin:h}"
+  global_manifest="${global_root}/install/global/package.json"
+
+  if [[ ! -f "$global_manifest" ]]; then
+    typeset -g STEP_NOTE="無全域套件"
+    return 0
+  fi
+
+  bun update -g --latest || return $?
+  typeset -g STEP_NOTE="全域套件完成"
 }
 
 step_update_bun() {
   require_cmd bun || return
-  bun upgrade
+
+  if is_brew_managed bun; then
+    typeset -g STEP_NOTE="本體由 Homebrew formula 管理"
+    return 0
+  fi
+
+  bun upgrade || return $?
+  typeset -g STEP_NOTE="本體完成"
+}
+
+# AI agent skills：CLI 本體由 bun 全域管（bun_globals 那步升級），
+# 這裡只負責把已安裝的 global skills 拉到上游最新。必須排在 bun_globals 之後，
+# 否則會用舊版 CLI 去更新。
+step_update_agent_skills() {
+  require_cmd skills || return
+
+  [[ -f "$HOME/.agents/.skill-lock.json" ]] || {
+    typeset -g STEP_NOTE="無已追蹤的 skills"
+    return 0
+  }
+
+  skills update --global --yes || return $?
+  typeset -g STEP_NOTE="global skills 完成"
 }
 
 # 僅檢查、不安裝：避免 sudo / 重開機；有更新時 WARN 提示手動處理
@@ -694,75 +807,82 @@ step_macos_updates_check() {
 
   # 有列出更新項目時，把清單寫進 log 供 WARN 時顯示
   print -r -- "$listing"
-  step_warn "有 macOS 系統更新可用（手動：softwareupdate -i -a）"
+  step_warn "有 macOS 系統更新可用（手動挑選：softwareupdate -i --label '<label>'）"
 }
 
-# npm：不更新，僅檢查是否有全域套件並建議遷移至 pnpm
-step_npm_check() {
+# npm：更新 user prefix 內的全域套件；npm 本體隨 Node 安裝來源管理。
+step_update_npm_global_tools() {
   require_cmd npm || return
 
-  local pkgs
-  pkgs=$(npm list -g --depth=0 2>/dev/null | grep '├\|└' | awk '{print $2}')
+  local global_root global_note
+  global_root="$(npm root -g 2>/dev/null)" || {
+    step_warn "無法取得 npm 全域套件目錄"
+    return 1
+  }
 
-  if [[ -z "$pkgs" ]]; then
-    typeset -g STEP_NOTE="無全域套件"
-    return 0
+  if [[ ! -d "$global_root" ]]; then
+    global_note="無全域套件"
+  else
+    npm update -g || return $?
+    global_note="全域套件完成"
   fi
 
-  print -r -- "    ${COLOR_DIM}└ 建議遷移至 pnpm：${COLOR_RESET}"
-  while IFS= read -r entry; do
-    local pkg="${entry%@*}"
-    print -r -- "        · 安裝：pnpm add -g ${pkg}"
-    print -r -- "          移除：npm uninstall -g ${pkg}"
-  done <<< "$pkgs"
-
-  step_warn "發現全域套件，建議遷移至 pnpm"
+  if is_brew_managed node; then
+    typeset -g STEP_NOTE="${global_note}；npm 本體由 Homebrew Node formula 管理"
+  else
+    typeset -g STEP_NOTE="${global_note}；npm 本體隨 Node 安裝來源管理"
+  fi
 }
 
-# pipx：不更新，僅檢查是否有工具並建議遷移至 uv tool
-step_pipx_check() {
+# pipx：更新所有已安裝工具；本體由其安裝來源管理。
+step_update_pipx_tools() {
   require_cmd pipx || return
 
-  local pkgs
-  pkgs=$(pipx list 2>/dev/null | grep 'package ' | awk '{print $2}' | sed 's/,//')
-
-  if [[ -z "$pkgs" ]]; then
-    typeset -g STEP_NOTE="無已安裝工具"
-    return 0
+  local listing list_rc tools_note
+  listing="$(pipx list 2>&1)"
+  list_rc=$?
+  if (( list_rc != 0 )); then
+    print -r -- "$listing"
+    step_warn "無法讀取 pipx 工具清單"
+    return 1
   fi
 
-  print -r -- "    ${COLOR_DIM}└ 建議遷移至 uv tool：${COLOR_RESET}"
-  while IFS= read -r pkg; do
-    print -r -- "        · 安裝：uv tool install ${pkg}"
-    print -r -- "          移除：pipx uninstall ${pkg}"
-  done <<< "$pkgs"
+  if print -r -- "$listing" | grep -qE '^[[:space:]]*package '; then
+    pipx upgrade-all || return $?
+    tools_note="工具完成"
+  else
+    tools_note="無已安裝工具"
+  fi
 
-  step_warn "發現已安裝工具，建議遷移至 uv tool"
+  if is_brew_managed pipx; then
+    typeset -g STEP_NOTE="${tools_note}；本體由 Homebrew formula 管理"
+  else
+    typeset -g STEP_NOTE="${tools_note}；pipx 本體請由安裝來源更新"
+  fi
 }
 
 # ── 主流程 ────────────────────────────────────────────────────
 
-# 完整更新：平行跑語言／Shell 工具，前景跑 Homebrew（含原 auc 的 cask greedy）。
+# 完整更新：背景更新 Shell／語言工具，前景處理 Homebrew（含原 auc 的 cask greedy）。
 run_main_update() {
-  # zinit×2 + uv + pnpm + gup + bun + npm + pipx + macos
-  # + brew update/upgrade/cask/autoremove/cleanup/doctor + brewfile
-  TOTAL_STEPS=16
+  # 背景 8 + Homebrew 6 + Bun 本體 / skills / zinit 本體 / Brewfile 各 1 = 18。
+  TOTAL_STEPS=18
 
   print_section "平行更新（Shell／語言工具）"
   print -r -- "  ${COLOR_DIM}以下任務背景執行，與 Homebrew 並行${COLOR_RESET}"
-  run_bg_step "zinit_update"   "zinit：更新插件"                   step_zinit_update
-  run_bg_step "uv_tools"       "uv：升級 tool"                     step_update_uv_tools
-  run_bg_step "pnpm_globals"   "pnpm：升級全域套件"                 step_update_pnpm_global_tools
-  run_bg_step "go_globals"     "gup：升級 Go 工具"                  step_update_go_global_tools
-  run_bg_step "bun_upgrade"    "bun：升級本體"                      step_update_bun
-  run_bg_step "npm_check"      "npm：檢查全域套件"                  step_npm_check
-  run_bg_step "pipx_check"     "pipx：檢查已裝工具"                 step_pipx_check
-  run_bg_step "macos_updates"  "macOS：檢查系統更新"                step_macos_updates_check
+  run_bg_step "zinit_update"  "zinit：更新插件"                  step_zinit_update
+  run_bg_step "uv_tools"      "uv：升級 tool 與本體"             step_update_uv_tools
+  run_bg_step "pnpm_globals"  "pnpm：升級全域套件與本體"         step_update_pnpm_global_tools
+  run_bg_step "go_globals"    "gup：升級 Go 工具"                step_update_go_global_tools
+  run_bg_step "bun_globals"   "bun：升級全域套件"                step_update_bun_global_tools
+  run_bg_step "npm_globals"   "npm：升級全域套件"                step_update_npm_global_tools
+  run_bg_step "pipx_tools"    "pipx：升級已安裝工具"             step_update_pipx_tools
+  run_bg_step "macos_updates" "macOS：檢查系統更新"              step_macos_updates_check
 
   print_section "Homebrew（formula → cask greedy → 清理）"
   if run_step "brew_update" "brew：更新索引" step_brew_update; then
     if run_step "brew_upgrade" "brew：升級 formula" step_brew_upgrade; then
-      if run_step "brew_cask_upgrade" "brew：升級 cask（--greedy）" step_brew_upgrade_cask; then
+      if run_step "brew_cask_upgrade" "brew：升級 cask" step_brew_upgrade_cask; then
         run_step "brew_autoremove" "brew：移除無用依賴" step_brew_autoremove
         run_step "brew_cleanup" "brew：清理快取" step_brew_cleanup
         run_step "brew_doctor" "brew：健康檢查" step_brew_doctor
@@ -774,7 +894,7 @@ run_main_update() {
       fi
     else
       skip_many "略過：formula 升級失敗" \
-        "brew_cask_upgrade:brew：升級 cask（--greedy）" \
+        "brew_cask_upgrade:brew：升級 cask" \
         "brew_autoremove:brew：移除無用依賴" \
         "brew_cleanup:brew：清理快取" \
         "brew_doctor:brew：健康檢查"
@@ -782,7 +902,7 @@ run_main_update() {
   else
     skip_many "略過：brew update 失敗" \
       "brew_upgrade:brew：升級 formula" \
-      "brew_cask_upgrade:brew：升級 cask（--greedy）" \
+      "brew_cask_upgrade:brew：升級 cask" \
       "brew_autoremove:brew：移除無用依賴" \
       "brew_cleanup:brew：清理快取" \
       "brew_doctor:brew：健康檢查"
@@ -792,6 +912,9 @@ run_main_update() {
   collect_bg_steps
 
   print_section "收尾"
+  run_step "bun_upgrade" "bun：升級本體" step_update_bun
+  run_step "agent_skills" "skills：升級全域 AI skills" step_update_agent_skills
+
   if [[ "${STEP_STATUS[zinit_update]}" == "OK" ]]; then
     run_bg_step "zinit_self_update" "zinit：升級本體" step_zinit_self_update
     BG_STEP_IDS=(zinit_self_update)
@@ -810,8 +933,8 @@ usage() {
   print -r -- "完整系統更新（alias：au），包含："
   print -r -- "  · Homebrew formula / cask（--greedy）"
   print -r -- "  · zinit 插件與本體"
-  print -r -- "  · uv tools / pnpm 全域 / gup（Go）/ bun"
-  print -r -- "  · npm／pipx 遷移檢查"
+  print -r -- "  · uv / pnpm / Bun：本體與全域套件"
+  print -r -- "  · gup / npm：全域套件；pipx：已安裝工具"
   print -r -- "  · macOS 系統更新檢查（不安裝）"
   print -r -- "  · Brewfile 快照"
 }

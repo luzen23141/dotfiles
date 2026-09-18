@@ -25,3 +25,5 @@ setopt HIST_IGNORE_ALL_DUPS   # 如果重複的話，刪除舊的指令
 setopt hist_ignore_space      # 忽略以空白開頭的指令
 setopt hist_verify            # 展開歷史後先顯示指令讓使用者確認再執行
 setopt share_history          # 跨 shell session 共享歷史記錄
+setopt hist_reduce_blanks     # 寫入前把多餘空白正規化（避免同指令因空白差異各存一筆）
+setopt hist_save_no_dups      # 寫入 HISTFILE 時丟掉較舊的重複項（HIST_IGNORE_ALL_DUPS 只管記憶體內）

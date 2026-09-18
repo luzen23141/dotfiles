@@ -1,7 +1,11 @@
+tap "can1357/tap", trusted: { formulae: ["omp"] }
 tap "luzen23141/taps", trusted: true
 tap "oven-sh/bun", trusted: true
 tap "shivammathur/extensions", trusted: true
 tap "shivammathur/php", trusted: true
+tap "stablyai/orca"
+# Download with resuming and segmented downloading
+brew "aria2"
 # Clone of cat(1) with syntax highlighting and Git integration
 brew "bat"
 # Remove large files or passwords from Git history like git-filter-branch
@@ -14,6 +18,8 @@ brew "php"
 brew "composer"
 # Modern, maintained replacement for ls
 brew "eza"
+# Simple, fast and user-friendly alternative to find
+brew "fd"
 # Play, record, convert, and stream select audio and video codecs
 brew "ffmpeg"
 # Command-line fuzzy finder written in Go
@@ -22,6 +28,8 @@ brew "fzf"
 brew "gh"
 # Distributed revision control system
 brew "git"
+# Syntax-highlighting pager for git and diff output
+brew "git-delta"
 # Quickly rewrite git repository history
 brew "git-filter-repo"
 # Render markdown on the CLI
@@ -46,6 +54,12 @@ brew "imagemagick"
 brew "jq"
 # Powerful, lightweight programming language
 brew "lua"
+# Java-based project management
+brew "maven"
+# MCP server for databases
+brew "mcp-toolbox"
+# Fast and user friendly build system
+brew "meson"
 # Deep clean and optimize your Mac
 brew "mole"
 # Open source relational database management system
@@ -54,6 +68,10 @@ brew "mysql"
 brew "node"
 # Simplified-traditional Chinese conversion tool
 brew "opencc"
+# Development kit for the Java programming language
+brew "openjdk@17"
+# General-purpose scripting language
+brew "php@8.2"
 # Execute binaries from Python packages in isolated environments
 brew "pipx"
 # Fast, disk space efficient package manager
@@ -66,6 +84,8 @@ brew "rclone"
 brew "redis"
 # Perl-powered file rename script with many helpful built-ins
 brew "rename"
+# Search tool like grep and The Silver Searcher
+brew "ripgrep"
 # Utility that provides fast incremental file transfer
 brew "rsync"
 # CLI proxy to minimize LLM token consumption
@@ -92,8 +112,12 @@ brew "upx"
 brew "uv"
 # Internet file retriever
 brew "wget"
+# Feature-rich command-line audio/video downloader
+brew "yt-dlp"
 # Incredibly fast JavaScript runtime, bundler, transpiler and package manager - all in one.
-brew "oven-sh/bun/bun"
+brew "oven-sh/bun/bun", trusted: true
+# General-purpose scripting language
+brew "shivammathur/php/php@7.4", trusted: true
 # Password manager that keeps all passwords secure behind one password
 cask "1password"
 # Menu bar tool to limit maximum charging percentage
@@ -114,6 +138,10 @@ cask "cleanshot"
 cask "codex"
 # Write, edit, and chat about your code with AI
 cask "cursor"
+# Command-line agent for Cursor
+cask "cursor-cli"
+# Downloads videos from different websites
+cask "downie"
 cask "font-hack-nerd-font"
 # Set of tools to manage resources and applications hosted on Google Cloud
 cask "gcloud-cli"
@@ -121,6 +149,10 @@ cask "gcloud-cli"
 cask "ghostty"
 # Web browser
 cask "google-chrome"
+# Chromium-based web browser
+cask "helium-browser"
+# Free and open-source media player
+cask "iina"
 # JetBrains tools manager
 cask "jetbrains-toolbox"
 # Tool to prevent the system from going into sleep mode
@@ -141,6 +173,8 @@ cask "notion"
 cask "obsidian"
 # Replacement for Docker Desktop
 cask "orbstack"
+# IDE for orchestrating AI coding agents across terminals and worktrees
+cask "stablyai/orca/orca", trusted: true
 # Collaboration platform for API development
 cask "postman"
 # Control your tools with a few keystrokes
@@ -157,10 +191,6 @@ cask "surfshark"
 cask "telegram-desktop"
 # Menu bar manager
 cask "thaw"
-# Web browser with built-in email client focusing on customization and control
-cask "vivaldi"
-# Multiplayer code editor
-cask "zed"
 vscode "anysphere.remote-containers"
 vscode "anysphere.remote-ssh"
 go "golang.org/x/tools/cmd/goimports"
