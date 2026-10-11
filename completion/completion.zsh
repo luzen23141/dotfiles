@@ -19,7 +19,7 @@ _s() {
 # 語法 `compdef _git 短名=git-子命令`：讓 _git 直接套用該子命令的補全器，
 # 所以 `gc feat<TAB>` 補的是分支名，而不是 git 的子命令清單。
 # 只有「參數語意與某個 git 子命令一致」的才列入；無參數或只吃自由文字的
-# （gsu / gsur / grh / gcm / ga. / gai / gito / gct / gcam / gcaim / gpr / groa / grom）
+# （gsu / gsur / grh / ga. / gai / gito / gct / gcam / gcaim / gpr / groa / grom）
 # 刻意不加，補出無意義的候選比沒有補全更糟。
 compdef g=git
 
@@ -40,9 +40,10 @@ compdef _git gwp=git-worktree   # git worktree prune
 compdef _git gm=git-merge       # 會把存在的 origin/<branch> 改寫，補分支名正是所需
 compdef _git ga=git-add         # git add "${1:-.}"
 
-# bin 腳本：gca / gcd 都是 git checkout <固定分支> "$@"，剩餘參數與 checkout 相同
+# bin 腳本：gca / gcd / gcm 都是 git checkout <固定分支> "$@"，剩餘參數與 checkout 相同
 compdef _git gca=git-checkout
 compdef _git gcd=git-checkout
+compdef _git gcm=git-checkout
 
 # ── eza 系列 alias（snippet/aliasConfig.zsh）────────────────────
 # 這幾個都是 eza 加不同旗標，補全需求完全相同。

@@ -1,3 +1,0 @@
-#! /bin/zsh
-
-git checkout "$(git config a.defaultBranch || git config init.defaultBranch || echo master)"

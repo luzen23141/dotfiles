@@ -2,20 +2,20 @@
 
 : "${DOTFILES:=$HOME/dotfiles}"
 source "$DOTFILES"/helperFunc/envHelper
+source "$DOTFILES"/helperFunc/gitBranch
 
 usage() {
   echo "使用方法:"
-  echo "1. 如果只提供一個參數，它必須是 array 中的以下項目之一：${set_current_branch[*]}"
-  echo "   當前分支將被設定為值。"
-  echo "2. 如果提供兩個參數，第一個參數將被設定為鍵，第二個為值。"
-  echo "3. 可以使用縮寫作為鍵，縮寫及其全寫形式如下："
-  for k v in ${(kv)shorter_key_map}; do
+  echo "1. 只提供一個分支縮寫時，將當前分支寫入對應的 git config："
+  for k v in ${(kv)branch_config_keys}; do
     echo "   $k => $v"
   done
+  echo "2. 提供兩個參數時：鍵為分支縮寫則寫入 git config，否則寫入 .aConfig。"
   echo ""
   echo "範例："
-  echo "    a set m        # 將當前分支設定為 main_branch"
-  echo "    a set t2c 0    # 將 t2c 設定為 0"
+  echo "    a set m          # 將當前分支設定為 a.mainBranch"
+  echo "    a set d develop  # 將 a.devBranch 設定為 develop"
+  echo "    a set t2c 0      # 將 .aConfig 的 t2c 設定為 0"
   echo ""
   exit 1
 }
@@ -25,28 +25,26 @@ if [[ $# -lt 1 ]] || [[ $# -gt 2 ]]; then
   usage
 fi
 
-# 處理單一參數的情況
+key=$1
+git_key=${branch_config_keys[$key]}
+
+# 處理單一參數的情況：值為當前分支
 if [[ $# -eq 1 ]]; then
-  key=$1
-  # 檢查參數是否在數組中
-  if [[ " ${set_current_branch[*]} " != *" $key "* ]]; then
-    echo "錯誤：參數 '$key' 不在 set_current_branch 清單中。"
+  if [[ -z $git_key ]]; then
+    echo "錯誤：參數 '$key' 不是分支縮寫（${(k)branch_config_keys}）。"
     exit 1
   fi
-
   if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     echo "錯誤：目前不在 Git 倉庫中。"
     exit 1
   fi
-
-  # 將值設定為當前分支名稱
   value=$(git rev-parse --abbrev-ref HEAD)
-fi
-
-# 處理兩個參數的情況
-if [[ $# -eq 2 ]]; then
-  key=$1
+else
   value=$2
 fi
 
-set_env_value "$key" "$value"
+if [[ -n $git_key ]]; then
+  git config "$git_key" "$value" && echo "$git_key=$value"
+else
+  set_env_value "$key" "$value"
+fi

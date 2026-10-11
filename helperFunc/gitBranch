@@ -1,0 +1,49 @@
+#!/bin/zsh
+# 主分支／開發分支解析（名詞定義見 GLOSSARY.md）
+# 順序：git config 明確設定 → 候選陣列中第一個存在（本地或 origin）的分支
+
+main_branch_candidates=(main master)
+dev_branch_candidates=(dev develop)
+
+# a set / a get 的分支縮寫 → git config key
+typeset -A branch_config_keys
+branch_config_keys=(
+  m a.mainBranch
+  d a.devBranch
+  a a.mineBranch
+)
+
+_branch_exists() {
+  git rev-parse --verify --quiet "refs/heads/$1" >/dev/null \
+    || git rev-parse --verify --quiet "refs/remotes/origin/$1" >/dev/null
+}
+
+# 用法：resolve_branch <config key> <候選陣列名> <顯示名稱>
+resolve_branch() {
+  local key=$1 label=$3
+  local candidates=("${(@P)2}")
+  local configured
+  configured=$(git config --get "$key")
+
+  if [[ -n $configured ]]; then
+    if _branch_exists "$configured"; then
+      echo "$configured"
+      return 0
+    fi
+    echo "錯誤：$key 設定的$label '$configured' 不存在" >&2
+    return 1
+  fi
+
+  local b
+  for b in "${candidates[@]}"; do
+    if _branch_exists "$b"; then
+      echo "$b"
+      return 0
+    fi
+  done
+  echo "錯誤：找不到$label，已嘗試：${candidates[*]}" >&2
+  return 1
+}
+
+resolve_main_branch() { resolve_branch a.mainBranch main_branch_candidates 主分支; }
+resolve_dev_branch() { resolve_branch a.devBranch dev_branch_candidates 開發分支; }

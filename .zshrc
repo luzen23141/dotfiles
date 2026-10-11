@@ -11,8 +11,10 @@ fi
 # 而 mtime 又比 brew 新 → 快取永久毒化，之後每個新終端都失去 /opt/homebrew/bin 與 FPATH。
 if [[ -x /opt/homebrew/bin/brew ]]; then
   BREW_ENV_CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/brew_shellenv.zsh"
-  # -s：非空才算有效快取（0 byte 視為毒化，直接重建）
-  if [[ ! -s "$BREW_ENV_CACHE" || /opt/homebrew/bin/brew -nt "$BREW_ENV_CACHE" ]]; then
+  # -f 且 -s：必須是非空的一般檔案。0 byte 視為毒化；若被誤建成目錄（-s 對目錄也成立、source 會失敗、
+  # mv 會把暫存檔搬進目錄裡），同樣視為無效並先移除，否則永遠無法自我修復
+  if [[ ! -f "$BREW_ENV_CACHE" || ! -s "$BREW_ENV_CACHE" || /opt/homebrew/bin/brew -nt "$BREW_ENV_CACHE" ]]; then
+    [[ -d "$BREW_ENV_CACHE" ]] && command rm -rf -- "$BREW_ENV_CACHE"
     mkdir -p "${BREW_ENV_CACHE:h}"
     if /opt/homebrew/bin/brew shellenv > "$BREW_ENV_CACHE.$$" && [[ -s "$BREW_ENV_CACHE.$$" ]]; then
       command mv -f "$BREW_ENV_CACHE.$$" "$BREW_ENV_CACHE"
@@ -21,7 +23,7 @@ if [[ -x /opt/homebrew/bin/brew ]]; then
     fi
   fi
   # 快取仍不可用時直接 eval，寧可多 fork 一次也不能讓 PATH 缺 Homebrew
-  if [[ -s "$BREW_ENV_CACHE" ]]; then
+  if [[ -f "$BREW_ENV_CACHE" && -s "$BREW_ENV_CACHE" ]]; then
     source "$BREW_ENV_CACHE"
   else
     eval "$(/opt/homebrew/bin/brew shellenv)"

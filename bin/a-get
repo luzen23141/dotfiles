@@ -2,10 +2,14 @@
 
 : "${DOTFILES:=$HOME/dotfiles}"
 source "$DOTFILES"/helperFunc/envHelper
+source "$DOTFILES"/helperFunc/gitBranch
 
 if [[ $# -eq 0 ]]; then
   # 無參數：列出所有 key-value
   list_env_values
+elif [[ -n ${branch_config_keys[$1]} ]]; then
+  # 分支縮寫：讀 git config，第二個參數為找不到時的預設值
+  git config --get "${branch_config_keys[$1]}" || echo "${2:-}"
 else
   # 有參數：顯示指定 key 的值，第二個參數為找不到時的預設值
   get_env_value "$1" "${2:-}"

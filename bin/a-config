@@ -52,13 +52,7 @@ list_config() {
           echo "----------------------------------------"
           while IFS='=' read -r key value; do
             [[ -z "$key" || "$key" =~ ^# ]] && continue
-            # 取得完整鍵名（如果有映射）
-            local full_key="${shorter_key_map[$key]:-}"
-            if [[ -n "$full_key" ]]; then
-              echo -e "${GREEN}$key${NC} ($full_key)\t$value"
-            else
-              echo -e "${GREEN}$key${NC}\t\t$value"
-            fi
+            echo -e "${GREEN}$key${NC}\t\t$value"
           done < "$CONFIG_FILE"
         else
           print_info "配置檔案為空"
@@ -108,9 +102,7 @@ get_config() {
       ;;
     global)
       if [[ -f "$GLOBAL_CONFIG" ]]; then
-        local full_key="${shorter_key_map[$key]:-$key}"
-        local escaped_full_key=$(escape_regex "$full_key")
-        value=$(grep -m 1 "^$escaped_full_key=" "$GLOBAL_CONFIG" 2>/dev/null | cut -d'=' -f2-)
+        value=$(grep -m 1 "^$(escape_regex "$key")=" "$GLOBAL_CONFIG" 2>/dev/null | cut -d'=' -f2-)
       fi
       ;;
     *)
@@ -139,8 +131,8 @@ set_config() {
       print_success "已設定 $key = $value (本地)"
       ;;
     global)
-      local full_key="${shorter_key_map[$key]:-$key}"
-      local escaped_full_key=$(escape_regex "$full_key")
+      local full_key=$key
+      local escaped_full_key=$(escape_regex "$key")
 
       if [[ ! -f "$GLOBAL_CONFIG" ]]; then
         touch "$GLOBAL_CONFIG"
@@ -171,15 +163,13 @@ delete_config() {
   local key="$1"
   local scope="${2:-local}"
   
-  local full_key="${shorter_key_map[$key]:-$key}"
+  local full_key=$key
   
   case "$scope" in
     local)
       if [[ -f "$CONFIG_FILE" ]]; then
         local escaped_full_key=$(escape_regex "$full_key")
-        local escaped_key=$(escape_regex "$key")
         sed -i '' "/^$escaped_full_key=/d" "$CONFIG_FILE"
-        sed -i '' "/^$escaped_key=/d" "$CONFIG_FILE"
         print_success "已刪除 $key (本地)"
       else
         print_error "本地配置檔案不存在"
@@ -272,16 +262,6 @@ reset_config() {
   esac
 }
 
-# 顯示可用的縮寫
-show_shortcuts() {
-  print_header "可用的鍵名縮寫"
-  echo -e "${CYAN}縮寫${NC}\t${CYAN}完整名稱${NC}"
-  echo "--------------------------------"
-  for k v in ${(kv)shorter_key_map}; do
-    echo -e "${GREEN}$k${NC}\t$v"
-  done
-}
-
 # 複製配置
 copy_config() {
   local from="$1"
@@ -331,7 +311,6 @@ Dotfiles 配置管理工具
   a config delete <key> [scope]   刪除配置
   a config edit [scope]           編輯配置檔案
   a config reset [scope]          重置配置
-  a config shortcuts              顯示可用的鍵名縮寫
   a config copy <from> <to>       複製配置 (local/global)
   a config help                   顯示此幫助訊息
 
@@ -342,17 +321,15 @@ Dotfiles 配置管理工具
 範例:
   a config list                   # 列出本地配置
   a config list global            # 列出全域配置
-  a config get main_branch        # 取得 main_branch 值
-  a config set m master           # 設定本地 main_branch 為 master
-  a config set m master global    # 設定全域 main_branch 為 master
-  a config delete m               # 刪除本地配置
+  a config get t2c                # 取得 t2c 值
+  a config set t2c 0              # 設定本地 t2c 為 0
+  a config set t2c 0 global       # 設定全域 t2c 為 0
+  a config delete t2c            # 刪除本地配置
   a config edit                   # 編輯本地配置
   a config copy local global      # 複製本地配置到全域
-  a config shortcuts              # 顯示所有縮寫
 
-鍵名縮寫:
-  m  -> main_branch
-  a  -> mine_branch
+分支設定（主分支／開發分支／自己的分支）存於 git config，請用 a set m|d|a 或
+git config --get-regexp '^a\.' 查看。
 EOF
 }
 
@@ -396,9 +373,6 @@ main() {
       ;;
     reset)
       reset_config "${1:-local}"
-      ;;
-    shortcuts|short)
-      show_shortcuts
       ;;
     copy|cp)
       if [[ $# -lt 2 ]]; then

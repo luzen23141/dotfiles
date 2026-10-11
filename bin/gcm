@@ -1,0 +1,6 @@
+#! /bin/zsh
+
+: "${DOTFILES:=$HOME/dotfiles}"
+source "$DOTFILES"/helperFunc/gitBranch
+branch=$(resolve_main_branch) || exit 1
+git checkout "$branch" "$@"

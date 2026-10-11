@@ -9,15 +9,6 @@ fi
 
 ENV_FILE=".aConfig"
 
-# 定義縮寫對應表
-typeset -A shorter_key_map
-shorter_key_map=(
-  m "main_branch"
-  a "mine_branch"
-)
-
-set_current_branch=("a" "m")
-
 # 確保 ENV_FILE 存在（僅寫入路徑呼叫；讀取不應建立檔案）
 ensure_env_exists() {
   if [[ ! -f "$ENV_FILE" ]]; then
@@ -37,7 +28,7 @@ escape_sed_replacement() {
 
 # 取得指定 key 的值，找不到時回傳預設值（檔案不存在不建立）
 get_env_value() {
-  local key=${shorter_key_map[$1]:-$1}
+  local key=$1
   local defaultValue=$2
 
   if [[ ! -f "$ENV_FILE" ]]; then
@@ -55,28 +46,10 @@ get_env_value() {
   fi
 }
 
-# 會包含key的整行資料（檔案不存在不建立）
-get_env_contains() {
-  [[ -f "$ENV_FILE" ]] || return 0
-
-  local searchKey=$1
-  local fullKey=${shorter_key_map[$searchKey]}
-  local escaped_search_key=$(escape_regex "$searchKey")
-
-  # 搜尋縮寫
-  grep "^$escaped_search_key=" "$ENV_FILE"
-
-  # 若有對應完整鍵名，一併搜尋
-  if [[ -n $fullKey ]]; then
-    local escaped_full_key=$(escape_regex "$fullKey")
-    grep "^$escaped_full_key=" "$ENV_FILE"
-  fi
-}
-
 # 設定指定 key 的值
 set_env_value() {
   ensure_env_exists
-  local key=${shorter_key_map[$1]:-$1}
+  local key=$1
   local value=$2
   local escaped_key=$(escape_regex "$key")
   local escaped_value=$(escape_sed_replacement "$value")

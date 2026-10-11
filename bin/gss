@@ -1,0 +1,221 @@
+#!/usr/bin/env bash
+# gss：一次列出當前 repo 與所有 submodule（遞迴）的分支、上游、stash、進行中的操作與異動檔案
+# 資料來源是 git status --porcelain=v2，資訊與 git status 一致；輸出非 TTY 或設了 NO_COLOR 時不上色。
+
+if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+  B=$'\e[1m' D=$'\e[2m' R=$'\e[31m' G=$'\e[32m' Y=$'\e[33m' C=$'\e[36m' M=$'\e[35m' N=$'\e[0m'
+else
+  B='' D='' R='' G='' Y='' C='' M='' N=''
+fi
+
+top=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "gss: 不在 git repo 中" >&2; exit 1; }
+
+change_word() {
+  case $1 in
+    M) echo modified ;; A) echo "new file" ;; D) echo deleted ;; R) echo renamed ;;
+    C) echo copied ;; T) echo typechange ;; *) echo "$1" ;;
+  esac
+}
+
+conflict_word() {
+  case $1 in
+    DD) echo "both deleted" ;; AU) echo "added by us" ;; UD) echo "deleted by them" ;;
+    UA) echo "added by them" ;; DU) echo "deleted by us" ;; AA) echo "both added" ;;
+    *) echo "both modified" ;;
+  esac
+}
+
+# porcelain v2 的 submodule 欄位 S<c><m><u> → git status 的括號說明
+sub_note() {
+  local s=$1 out=''
+  [[ $s == S* ]] || return 0
+  [[ ${s:1:1} == C ]] && out+="new commits, "
+  [[ ${s:2:1} == M ]] && out+="modified content, "
+  [[ ${s:3:1} == U ]] && out+="untracked content, "
+  [[ -n $out ]] && printf ' %s(%s)%s' "$D" "${out%, }" "$N"
+}
+
+# 進行中的 rebase / merge / cherry-pick / revert / am / bisect
+repo_state() {
+  local dir=$1 gd
+  gd=$(git -C "$dir" rev-parse --absolute-git-dir) || return 0
+  short() { git -C "$dir" rev-parse --short "$(<"$1")" 2>/dev/null; }
+  if [[ -d $gd/rebase-merge ]]; then
+    echo "rebasing ${B}$(sed 's#^refs/heads/##' "$gd/rebase-merge/head-name")${N}${Y} onto $(short "$gd/rebase-merge/onto") ($(<"$gd/rebase-merge/msgnum")/$(<"$gd/rebase-merge/end"))"
+  elif [[ -f $gd/rebase-apply/applying ]]; then
+    echo "am in progress ($(<"$gd/rebase-apply/next")/$(<"$gd/rebase-apply/last"))"
+  elif [[ -d $gd/rebase-apply ]]; then
+    echo "rebase in progress ($(<"$gd/rebase-apply/next")/$(<"$gd/rebase-apply/last"))"
+  elif [[ -f $gd/MERGE_HEAD ]]; then
+    echo "merging $(short "$gd/MERGE_HEAD")"
+  elif [[ -f $gd/CHERRY_PICK_HEAD ]]; then
+    echo "cherry-picking $(short "$gd/CHERRY_PICK_HEAD")"
+  elif [[ -f $gd/REVERT_HEAD ]]; then
+    echo "reverting $(short "$gd/REVERT_HEAD")"
+  fi
+  [[ -f $gd/BISECT_LOG ]] && echo "bisecting"
+  return 0
+}
+
+fmt_stat() { # $1 新增行 $2 刪除行 → "+a -d"（0 省略）；binary 檔 numstat 為 "-" 顯示 bin
+  [[ $1 == - ]] && { printf '%sbin%s' "$D" "$N"; return; }
+  local s=''
+  (( $1 )) && s+="${G}+$1${N}"
+  (( $2 )) && s+="${s:+ }${R}-$2${N}"
+  printf '%s' "$s"
+}
+
+# git <args> --numstat -z → 每行 "path<TAB>stat"；-z 讓路徑不被 quote，rename 以新路徑為 key
+numstat() {
+  local tok a d p
+  while IFS= read -r -d '' tok; do
+    a=${tok%%$'\t'*}; tok=${tok#*$'\t'}
+    d=${tok%%$'\t'*}; p=${tok#*$'\t'}
+    if [[ -z $p ]]; then IFS= read -r -d '' _; IFS= read -r -d '' p; fi
+    printf '%s\t%s\n' "$p" "$(fmt_stat "$a" "$d")"
+  done < <(git "$@" --numstat -z 2>/dev/null)
+}
+
+# ponytail: macOS 內建 bash 3.2 沒有 associative array，逐行線性查找，O(n²)；異動上千檔才會慢，屆時改用 awk join
+stat_of() { # $1 path $2 numstat 輸出
+  local line
+  while IFS= read -r line; do
+    [[ ${line%%$'\t'*} == "$1" ]] && { printf '%s' "${line#*$'\t'}"; return; }
+  done <<<"$2"
+}
+
+# ponytail: 以 UTF-8 位元組數估算顯示寬度（中日韓字 3 bytes 佔 2 格），其他多位元組字元可能差 1 格
+width() {
+  local chars=${#1} bytes
+  bytes=$(LC_ALL=C; printf '%s' "${#1}")
+  echo $(( chars + (bytes - chars) / 2 ))
+}
+
+print_section() { # $1 標題 $2 顏色，其餘為 "文字<TAB>統計"；統計欄對齊同段最長的文字
+  local title=$1 color=$2; shift 2
+  (( $# )) || return 0
+  printf '  %s %s(%d)%s\n' "$title" "$D" $# "$N"
+  local item text stat tw w=0
+  for item in "$@"; do
+    [[ -n ${item#*$'\t'} ]] || continue
+    tw=$(width "${item%%$'\t'*}")
+    (( tw > w )) && w=$tw
+  done
+  for item in "$@"; do
+    text=${item%%$'\t'*} stat=${item#*$'\t'}
+    if [[ -n $stat ]]; then
+      printf '      %s%s%s%*s  %s\n' "$color" "$text" "$N" $(( w - $(width "$text") )) '' "$stat"
+    else
+      printf '      %s%s%s\n' "$color" "$text" "$N"
+    fi
+  done
+}
+
+render() { # $1 目錄 $2 顯示名稱 $3 額外註記
+  local dir=$1 label=$2 note=$3
+  local line oid='' head='' up='' ab='' stash=0 xy sub path key rest a d
+  local staged=() unstaged=() untracked=() conflicts=()
+  local cached_ns worktree_ns
+  cached_ns=$(numstat -C "$dir" diff --cached)
+  worktree_ns=$(numstat -C "$dir" diff)
+
+  while IFS= read -r line; do
+    case $line in
+      '# branch.oid '*)      oid=${line#\# branch.oid } ;;
+      '# branch.head '*)     head=${line#\# branch.head } ;;
+      '# branch.upstream '*) up=${line#\# branch.upstream } ;;
+      '# branch.ab '*)       ab=${line#\# branch.ab } ;;
+      '# stash '*)           stash=${line#\# stash } ;;
+      '1 '*|'2 '*)
+        if [[ $line == 1* ]]; then
+          read -r _ xy sub _ _ _ _ _ path <<<"$line"
+          key=$path
+        else # 2 XY sub mH mI mW hH hI score path<TAB>orig
+          read -r _ xy sub _ _ _ _ _ _ rest <<<"$line"
+          key=${rest%%$'\t'*}
+          path="${rest#*$'\t'} -> $key"
+        fi
+        [[ ${xy:0:1} != . ]] && staged+=("$(printf '%-12s%s' "$(change_word "${xy:0:1}"):" "$path")"$'\t'"$(stat_of "$key" "$cached_ns")")
+        if [[ ${xy:1:1} != . ]]; then
+          if [[ $sub == S* ]]; then # submodule 的行數無意義，改顯示括號說明
+            unstaged+=("$(printf '%-12s%s' "$(change_word "${xy:1:1}"):" "$path")$(sub_note "$sub")"$'\t')
+          else
+            unstaged+=("$(printf '%-12s%s' "$(change_word "${xy:1:1}"):" "$path")"$'\t'"$(stat_of "$key" "$worktree_ns")")
+          fi
+        fi
+        ;;
+      'u '*)
+        read -r _ xy _ _ _ _ _ _ _ _ path <<<"$line"
+        conflicts+=("$(printf '%-17s%s' "$(conflict_word "$xy"):" "$path")"$'\t') # 衝突檔的行數只是衝突標記，不顯示
+        ;;
+      '? '*)
+        path=${line#? } rest=''
+        if [[ $path != */ ]]; then # 未追蹤目錄不展開計算
+          read -r a d _ < <(git -C "$dir" diff --no-index --numstat -- /dev/null "$path" 2>/dev/null)
+          [[ -n $a ]] && rest=$(fmt_stat "$a" "$d")
+        fi
+        untracked+=("$path"$'\t'"$rest")
+        ;;
+    esac
+  done < <(git -C "$dir" -c core.quotePath=false status --porcelain=v2 --branch --show-stash 2>/dev/null)
+
+  # 標頭：名稱  分支 → 上游  ↑ahead ↓behind  stash
+  local hdr="${B}${label}${N}  "
+  if [[ $oid == '(initial)' ]]; then
+    hdr+="${C}${head}${N} ${D}(no commits yet)${N}"
+  elif [[ $head == '(detached)' ]]; then
+    local refs
+    refs=$(git -C "$dir" for-each-ref --points-at HEAD --format='%(refname:lstrip=2)' refs/heads refs/remotes refs/tags | grep -v '/HEAD$' | paste -sd ' ' -)
+    hdr+="${Y}HEAD detached @ ${oid:0:7}${N}"
+    [[ -n $refs ]] && hdr+=" ${D}(${refs})${N}"
+  else
+    hdr+="${C}${head}${N}"
+  fi
+  if [[ -n $up ]]; then
+    hdr+=" ${D}→${N} ${up}"
+    if [[ -z $ab ]]; then
+      hdr+=" ${R}[gone]${N}"
+    else
+      local a=${ab%% *} b=${ab##* }
+      a=${a#+} b=${b#-}
+      if (( a == 0 && b == 0 )); then hdr+=" ${D}up to date${N}"; fi
+      (( a > 0 )) && hdr+=" ${G}↑${a}${N}"
+      (( b > 0 )) && hdr+=" ${R}↓${b}${N}"
+    fi
+  elif [[ $head != '(detached)' ]]; then
+    hdr+=" ${D}(no upstream)${N}"
+  fi
+  (( stash > 0 )) && hdr+="  ${M}stash ${stash}${N}"
+  [[ -n $note ]] && hdr+="  ${note}"
+  printf '%s\n' "$hdr"
+
+  local s
+  while IFS= read -r s; do printf '  %s⚠ %s%s\n' "$Y" "$s" "$N"; done < <(repo_state "$dir")
+
+  if (( ${#staged[@]} + ${#unstaged[@]} + ${#untracked[@]} + ${#conflicts[@]} == 0 )); then
+    printf '  %sclean%s\n' "$D" "$N"
+    return
+  fi
+  print_section "Unmerged"  "$R" "${conflicts[@]}"
+  print_section "Staged"    "$G" "${staged[@]}"
+  print_section "Unstaged"  "$R" "${unstaged[@]}"
+  print_section "Untracked" "$R" "${untracked[@]}"
+}
+
+render "$top" "$(basename "$top")" ""
+
+# submodule status 的前綴：' ' 正常、'+' checkout 的 commit 與父 repo 記錄不同、'-' 未初始化、'U' 衝突
+while IFS= read -r line; do
+  flag=${line:0:1}
+  rest=${line:1}
+  rest=${rest#* }
+  path=${rest% (*)}
+  echo
+  case $flag in
+    -) printf '%s%s%s  %snot initialized%s\n' "$B" "$path" "$N" "$D" "$N"; continue ;;
+    +) note="${Y}≠ commit recorded in parent${N}" ;;
+    U) note="${R}merge conflict in parent${N}" ;;
+    *) note='' ;;
+  esac
+  render "$top/$path" "$path" "$note"
+done < <(git -C "$top" submodule status --recursive 2>/dev/null)

@@ -64,6 +64,8 @@ brew "meson"
 brew "mole"
 # Open source relational database management system
 brew "mysql"
+# Open source relational database management system
+brew "mysql-client@8.4"
 # Open-source, cross-platform JavaScript runtime environment
 brew "node"
 # Simplified-traditional Chinese conversion tool
@@ -122,24 +124,14 @@ brew "shivammathur/php/php@7.4", trusted: true
 cask "1password"
 # Menu bar tool to limit maximum charging percentage
 cask "aldente"
-# Terminal interface for Antigravity agents
-cask "antigravity-cli"
 # Platform for API documentation, debugging, Mock and testing
 cask "apipost"
-# OpenAI's official ChatGPT desktop app
-cask "chatgpt"
 # Anthropic's official Claude AI desktop app
 cask "claude"
 # Terminal-based AI coding assistant
 cask "claude-code@latest"
 # Screen capturing tool
 cask "cleanshot"
-# OpenAI's coding agent that runs in your terminal
-cask "codex"
-# Write, edit, and chat about your code with AI
-cask "cursor"
-# Command-line agent for Cursor
-cask "cursor-cli"
 # Downloads videos from different websites
 cask "downie"
 cask "font-hack-nerd-font"
@@ -147,8 +139,6 @@ cask "font-hack-nerd-font"
 cask "gcloud-cli"
 # Terminal emulator that uses platform-native UI and GPU acceleration
 cask "ghostty"
-# Web browser
-cask "google-chrome"
 # Chromium-based web browser
 cask "helium-browser"
 # Free and open-source media player
@@ -167,8 +157,6 @@ cask "macfuse"
 cask "microsoft-teams"
 # Reverse proxy, secure introspectable tunnels to localhost
 cask "ngrok"
-# App to write, plan, collaborate, and get organised
-cask "notion"
 # Knowledge base that works on top of a local folder of plain text Markdown files
 cask "obsidian"
 # Replacement for Docker Desktop
@@ -191,6 +179,4 @@ cask "surfshark"
 cask "telegram-desktop"
 # Menu bar manager
 cask "thaw"
-vscode "anysphere.remote-containers"
-vscode "anysphere.remote-ssh"
 go "golang.org/x/tools/cmd/goimports"

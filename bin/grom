@@ -1,5 +1,6 @@
 #! /bin/zsh
 
 : "${DOTFILES:=$HOME/dotfiles}"
-source "$DOTFILES"/helperFunc/envHelper
-git rebase origin/"$(get_env_value main_branch master)"
+source "$DOTFILES"/helperFunc/gitBranch
+branch=$(resolve_main_branch) || exit 1
+git rebase origin/"$branch"

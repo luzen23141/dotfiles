@@ -190,3 +190,6 @@ function sshAlias() {
         fi
     fi
 }
+
+# omp 模型配置切換：Claude 額度夠用時用 ompc（全 Anthropic overlay），預設 omp 為混合配置
+alias ompc='omp --config "$HOME/ai_config/omp/overlays/claude.yml"'

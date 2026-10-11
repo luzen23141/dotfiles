@@ -71,17 +71,18 @@ function gai() {
   command cat "$exclude"
 }
 
-# 開啟 PR 頁面（讀取 .aConfig main_branch，預設 master）
+# 開啟主分支頁面（主分支解析見 helperFunc/gitBranch）
 function gito() {
   : "${DOTFILES:=$HOME/dotfiles}"
-  source "$DOTFILES"/helperFunc/envHelper
-  git open origin "$(get_env_value main_branch master)"
+  source "$DOTFILES"/helperFunc/gitBranch
+  local branch
+  branch=$(resolve_main_branch) || return 1
+  git open origin "$branch"
 }
 alias grh="git reset 'HEAD^'"
 alias gba="git branch -a"
 alias gsur="git submodule update --recursive --remote"
 alias grs="git restore --staged"
-alias gcm="git_check_mainBranch"
 alias ga.="git add . && git status"
 
 function ga() {
@@ -92,7 +93,7 @@ function gma() {
   : "${DOTFILES:=$HOME/dotfiles}"
   source "$DOTFILES"/helperFunc/envHelper
   local mine_branch
-  mine_branch="$(get_env_value mine_branch alex)"
+  mine_branch="$(git config --get a.mineBranch || echo alex)"
   echo "執行指令 git merge origin/$mine_branch --no-edit"
   git merge origin/"$mine_branch" --no-edit
 
